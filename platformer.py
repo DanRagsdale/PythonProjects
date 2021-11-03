@@ -27,10 +27,17 @@ pygame.display.set_caption("Game")
 module = sys.modules['__main__']
 path, name = os.path.split(module.__file__)
 
+tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
+tex_dirt.convert()
+
+tex_player = pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "player_idle_00.png"))
+tex_player.convert()
+
+
 class Player(pygame.sprite.Sprite):
 	def __init__(self):
 		super().__init__()
-		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
+		self.surf = pygame.Surface((BLOCK_SIZE, 2 * BLOCK_SIZE))
 		self.surf.fill((128,64,32))
 		self.rect = self.surf.get_rect()
 
@@ -40,6 +47,8 @@ class Player(pygame.sprite.Sprite):
 
 		self.jump_counter = 0
 		self.on_ground = 0
+		
+		self.texture = tex_player 
 	
 	def move(self):
 		true_grav = GRAVITY	
@@ -114,6 +123,8 @@ class Platform(pygame.sprite.Sprite):
 		self.surf.fill((255,0,0))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
+		self.texture = tex_dirt 
+
 player = Player()
 
 all_sprites = pygame.sprite.Group()
@@ -133,6 +144,10 @@ for x in range(img.size[0]):
 			platforms.add(plat)
 
 game_map = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+background = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+
+for entity in platforms:
+	background.blit(tex_dirt, entity.rect)
 
 window_pos = [0,0]
 
@@ -162,8 +177,8 @@ while running:
 
 	if frame_count % 1 == 0:
 		game_map.fill((0,0,0))
-		for entity in all_sprites:
-			game_map.blit(entity.surf, entity.rect)
+		game_map.blit(background, (0,0))
+		game_map.blit(player.texture, player.rect)
 
 		window.fill((0,0,0))
 		window.blit(game_map, window_pos)
@@ -171,7 +186,8 @@ while running:
 		pygame.display.update()
 
 	current_time = time.perf_counter()
-	print("Frame Time is: ", str(current_time - last_time))
+	print("Frame time is: ", current_time - last_time)
+
 	last_time = current_time
 
 	frame_count += 1
