@@ -1,4 +1,8 @@
+from cProfile import run
 import random
+import itertools
+
+from manim import *
 
 COLORS = ['A','B','C']
 VALID_COLORS = ['B','C']
@@ -19,15 +23,61 @@ class Tree:
 
 		return counter
 
+	def get_vertices(self):
+		verts = [self]
+		for child in self.children:
+			verts.extend(child.get_vertices())
+		return verts
+
+	def get_edges(self):
+		edges = []
+		for child in self.children:
+			edges.append((self,child))
+			edges.extend(child.get_edges())
+		return edges
+
+
+
 def is_embeddable(small, large):
-	# does small have the same root as large?
+	# Are the roots the same color, is small total length less, and do we have fewer children than large?
+	# If *yes* check if our children can be embedded in the children of large. Will have to check all permutations
+	# 	If *yes*, then we are good
+	#	If *no*, then check if small can be embedded as one of the children of large
 
-	# does root of small one of the children of large? etc.
+	# If *no* check if small can be embedded as one of the children of large
 
-	return True
+	if small.get_length() > large.get_length():
+		return False
+	if len(small.children) > len(large.children):
+		return False
+
+	flag = False
+
+	if small.color == large.color:
+		flag = True
+		if len(small.children) > 0:
+			for order in itertools.permutations(range(0, len(large.children)), len(small.children)):
+				flag = True
+				for i in range(0, len(small.children)):
+					flag *= is_embeddable(small.children[i], large.children[order[i]])
+				if flag:
+					break
+
+	# Check if small can be embedded as a child of large
+	if not flag:
+		for child in large.children:
+			flag = flag or is_embeddable(small, child)
 
 
-def generate_subtree(max_len, b_limit):
+	return bool(flag)
+
+
+# Randomly generate a tree that meets certain criteria:
+# Tree will not contain any nodes with A coloring
+# Tree will not embed B--b
+# Tree will not embed c--B--c
+# Tree will not embed B--c--c--c
+def generate_tree(max_len, b_limit):
 		remaining_len = max_len - 1
 
 		t = Tree()
@@ -54,31 +104,12 @@ def generate_subtree(max_len, b_limit):
 		else:
 			while remaining_len > 0:
 				next_len = random.randint(1, remaining_len)
-				child_tree = generate_subtree(next_len, b_limit)
+				child_tree = generate_tree(next_len, b_limit)
 				
 				t.children.append(child_tree)
 				remaining_len -= child_tree.get_length()
 
 		return t
-
-
-# Randomly generate a tree that meets certain criteria:
-# Tree will not contain any nodes with A coloring
-# Tree will not embed b--b
-# Tree will not embed c--B--c
-# Tree will not embed B--c--c--c
-def generate_tree(length):
-	remaining_length = length
-	b_limit = 1
-	
-	remaining_length -= 1
-
-	while remaining_length > 0:
-		sub_tree = generate_subtree(1,1)
-		remaining_length -=1
-	
-	return Tree()
-
 
 
 
@@ -92,10 +123,47 @@ def visualize(tree, depth):
 		visualize(child, depth + 1)
 
 
-n = 7
-t = generate_subtree(8, 2)
+class Count(Animation):
+	def __init__(self, number: DecimalNumber, start: float, end: float, **kwargs) -> None:
+		super().__init__(number, **kwargs)
+		self.start = start
+		self.end = end
 
-visualize(t, 0)
+	def interpolate_mobject(self, alpha: float) -> None:
+		value = self.start + alpha * (self.end - self.start)
+		self.mobject.set_value(value)
 
-print()
-#print(is_embeddable(a, t))
+class Vertex:
+	def __init__(self, index, color):
+		self.index = index
+		self.color = color
+
+class TestManim(Scene):
+	def construct(self):
+		
+		t = generate_tree(10, 2)
+		visualize(t,0)
+
+		t_verts = t.get_vertices()
+		t_edges = t.get_edges()
+
+		red_verts = {}
+		for v in t_verts:
+			if v.color == "A":
+				red_verts[v] = {"fill_color":BLUE}
+			elif v.color == "B":
+				red_verts[v] = {"fill_color":RED}
+			elif v.color == "C":
+				red_verts[v] = {"fill_color":GREEN}
+
+		g = Graph(t_verts, t_edges, 
+			layout="tree", 
+			vertex_config=red_verts,
+			root_vertex=t_verts[0])
+
+		self.play(Create(g))
+		self.wait()
+		
+		#num = DecimalNumber().set_color(WHITE).scale(5)
+		#self.add(num)
+		#self.play(Count(num, 10, 100), run_time=4.0)

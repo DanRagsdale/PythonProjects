@@ -1,4 +1,6 @@
 .vscode/
 data/
+media/
+__pycache__/
 
 ideas.md
