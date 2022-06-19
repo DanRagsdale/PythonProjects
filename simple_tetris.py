@@ -24,9 +24,9 @@ FIXPIECE = pygame.USEREVENT + 1
 board = [[0 for y in range(20)] for x in range(10)] 
 
 PIECES = [
-	[(0,0),(0,0),(0,0),(0,0)],
-	[(1,0),(0,1),(1,1),(2,1)],
-	[(0,0),(0,1),(1,0),(1,1)],
+  [(0,0),(0,0),(0,0),(0,0)],
+	[(0,0),(1,0),(2,0),(1,1)],
+	[(0,0),(0,1),(1,0),(1,1)], 
 	[(0,0),(1,0),(2,0),(0,1)],
 	[(0,0),(1,0),(2,0),(2,1)],
 	[(1,0),(2,0),(0,1),(1,1)],
@@ -156,7 +156,6 @@ for tag in IMAGE_SOURCES:
 
 	IMAGES.append(img)
 
-
 # Begin game code
 piece = Piece()
 next_piece = Piece()
@@ -220,6 +219,7 @@ while alive:
 								drop_frames = int(drop_frames * 0.9)
 							else:
 								drop_frames = int(drop_frames * 0.95)
+							print("Drop frames: ", drop_frames)
 
 						print(str(lines_cleared) + " lines cleared")
 						for y1 in range(y, 0, -1):

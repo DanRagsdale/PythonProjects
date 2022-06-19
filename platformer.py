@@ -99,21 +99,21 @@ class Player(pygame.sprite.Sprite):
 		ground_hits = pygame.sprite.spritecollide(self, platforms, False)
 		for hit in ground_hits:
 			delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
-			if abs(delta[1]) - abs(delta[0]) > 2:
+			if abs(delta[1]) - 1.5*abs(delta[0]) > 2:
 				if delta [1] < 0 and self.vel.y > 0:
 					self.pos.y = hit.rect.top + 1
 					self.vel.y = 0
 				elif delta[1] > 0:
-					self.pos.y = hit.rect.bottom + BLOCK_SIZE
+					self.pos.y = hit.rect.bottom + 2*BLOCK_SIZE
 					self.vel.y = 0
 		wall_hits = pygame.sprite.spritecollide(self, platforms, False)
 		for hit in wall_hits:
 			delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
-			if abs(delta[0]) - abs(delta[1]) > 2:
+			if 1.5*abs(delta[0]) - abs(delta[1]) > 3:
 				if delta[0] > 0:
-					self.pos.x = hit.rect.right + BLOCK_SIZE / 2
+					self.pos.x = hit.rect.right + BLOCK_SIZE / 2 - 1
 				else:
-					self.pos.x = hit.rect.left - BLOCK_SIZE / 2
+					self.pos.x = hit.rect.left - BLOCK_SIZE / 2 + 1
 				self.vel.x = 0
 		
 class Platform(pygame.sprite.Sprite):
