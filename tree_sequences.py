@@ -5,7 +5,7 @@ import itertools
 from manim import *
 
 COLORS = ['A','B','C']
-VALID_COLORS = ['B','C']
+VALID_COLORS = ['B','C','C']
 
 
 class Tree:
@@ -138,32 +138,91 @@ class Vertex:
 		self.index = index
 		self.color = color
 
+trees = []
+
+
 class TestManim(Scene):
 	def construct(self):
-		
-		t = generate_tree(10, 2)
-		visualize(t,0)
+		for i in range(len(trees) + 1, 10):
+			is_valid = False
+			while is_valid == False:
+				is_valid = True
+				big_tree = generate_tree(i, 2)
+				for t in trees:
+					is_valid *= (not is_embeddable(t, big_tree))
+			print("Working on n= ", i)
 
-		t_verts = t.get_vertices()
-		t_edges = t.get_edges()
+			trees.append(big_tree)
 
-		red_verts = {}
-		for v in t_verts:
-			if v.color == "A":
-				red_verts[v] = {"fill_color":BLUE}
-			elif v.color == "B":
-				red_verts[v] = {"fill_color":RED}
-			elif v.color == "C":
-				red_verts[v] = {"fill_color":GREEN}
 
-		g = Graph(t_verts, t_edges, 
-			layout="tree", 
-			vertex_config=red_verts,
-			root_vertex=t_verts[0])
+		initial_tree = None
 
-		self.play(Create(g))
-		self.wait()
+		for t in trees:
+
+			t_verts = t.get_vertices()
+			t_edges = t.get_edges()
+
+			red_verts = {}
+			for v in t_verts:
+				if v.color == "A":
+					red_verts[v] = {"fill_color":BLUE, "radius":0.25}
+				elif v.color == "B":
+					red_verts[v] = {"fill_color":RED, "radius":0.25}
+				elif v.color == "C":
+					red_verts[v] = {"fill_color":GREEN, "radius":0.25}
+
+
+			g = Graph(t_verts, t_edges, 
+				layout="tree", 
+				vertex_config=red_verts,
+				root_vertex=t_verts[0])
+			
+			if initial_tree is None:	
+				self.play(FadeIn(g), run_time=1.5)
+				initial_tree = g
+			else:
+				self.play(Transform(initial_tree,g), run_time=1.5)
+				self.add(g)
+				self.remove(initial_tree)
+				initial_tree = g
+
+			self.wait(0.5)
+
 		
 		#num = DecimalNumber().set_color(WHITE).scale(5)
 		#self.add(num)
 		#self.play(Count(num, 10, 100), run_time=4.0)
+
+
+t0 = Tree()
+t0.color = "A"
+trees.append(t0)
+
+t1 = Tree()
+t1.color = "B"
+t1_c0 = Tree()
+t1_c0.color = "B"
+t1.children = [t1_c0]
+trees.append(t1)
+
+t2 = Tree()
+t2.color = "B"
+t2_c0 = Tree()
+t2_c0.color = "C"
+t2_c1 = Tree()
+t2_c1.color = "C"
+t2.children = [t2_c0, t2_c1]
+trees.append(t2)
+
+t3 = Tree()
+t3.color = "B"
+t3_c0 = Tree()
+t3_c0.color = "C"
+t3_c1 = Tree()
+t3_c1.color = "C"
+t3_c2 = Tree()
+t3_c2.color = "C"
+t3_c1.children = [t3_c2]
+t3_c0.children = [t3_c1]
+t3.children = [t3_c0]
+trees.append(t3)
