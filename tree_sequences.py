@@ -48,12 +48,10 @@ def is_embeddable(small, large):
 
 	if small.get_length() > large.get_length():
 		return False
-	if len(small.children) > len(large.children):
-		return False
 
 	flag = False
 
-	if small.color == large.color:
+	if small.color == large.color and len(small.children) <= len(large.children):
 		flag = True
 		if len(small.children) > 0:
 			for order in itertools.permutations(range(0, len(large.children)), len(small.children)):
@@ -143,7 +141,7 @@ trees = []
 
 class TestManim(Scene):
 	def construct(self):
-		for i in range(len(trees) + 1, 10):
+		for i in range(len(trees) + 1, 17):
 			is_valid = False
 			while is_valid == False:
 				is_valid = True
@@ -156,6 +154,8 @@ class TestManim(Scene):
 
 
 		initial_tree = None
+
+		counter = 0
 
 		for t in trees:
 
@@ -176,18 +176,25 @@ class TestManim(Scene):
 				layout="tree", 
 				vertex_config=red_verts,
 				root_vertex=t_verts[0])
-			
+
+			g.shift(RIGHT * 3.5)	
 			if initial_tree is None:	
 				self.play(FadeIn(g), run_time=1.5)
 				initial_tree = g
 			else:
+				morph_tree = initial_tree.copy()
+				self.add(morph_tree)
+				self.play(morph_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))))
+
 				self.play(Transform(initial_tree,g), run_time=1.5)
 				self.add(g)
 				self.remove(initial_tree)
 				initial_tree = g
 
+			counter += 1
 			self.wait(0.5)
-
+		self.play(initial_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))))
+		self.wait(2)
 		
 		#num = DecimalNumber().set_color(WHITE).scale(5)
 		#self.add(num)
