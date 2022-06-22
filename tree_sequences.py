@@ -109,8 +109,6 @@ def generate_tree(max_len, b_limit):
 
 		return t
 
-
-
 def visualize(tree, depth):
 	if depth == 0:
 		print(tree.color)
@@ -120,26 +118,9 @@ def visualize(tree, depth):
 	for child in tree.children:
 		visualize(child, depth + 1)
 
-
-class Count(Animation):
-	def __init__(self, number: DecimalNumber, start: float, end: float, **kwargs) -> None:
-		super().__init__(number, **kwargs)
-		self.start = start
-		self.end = end
-
-	def interpolate_mobject(self, alpha: float) -> None:
-		value = self.start + alpha * (self.end - self.start)
-		self.mobject.set_value(value)
-
-class Vertex:
-	def __init__(self, index, color):
-		self.index = index
-		self.color = color
-
 trees = []
 
-
-class TestManim(Scene):
+class TreeManim(Scene):
 	def construct(self):
 		for i in range(len(trees) + 1, 17):
 			is_valid = False
@@ -162,19 +143,19 @@ class TestManim(Scene):
 			t_verts = t.get_vertices()
 			t_edges = t.get_edges()
 
-			red_verts = {}
+			vert_mobjects= {}	
 			for v in t_verts:
+				Circle(radius=0.25, color=BLUE, fill_opacity=1)
 				if v.color == "A":
-					red_verts[v] = {"fill_color":BLUE, "radius":0.25}
+					vert_mobjects[v] = Circle(radius=0.25, color=BLUE, fill_opacity=1)
 				elif v.color == "B":
-					red_verts[v] = {"fill_color":RED, "radius":0.25}
+					vert_mobjects[v] = Circle(radius=0.25, color=RED, fill_opacity=1)
 				elif v.color == "C":
-					red_verts[v] = {"fill_color":GREEN, "radius":0.25}
-
+					vert_mobjects[v] = Circle(radius=0.25, color=GREEN, fill_opacity=1)
 
 			g = Graph(t_verts, t_edges, 
 				layout="tree", 
-				vertex_config=red_verts,
+				vertex_mobjects=vert_mobjects,
 				root_vertex=t_verts[0])
 
 			g.shift(RIGHT * 3.5)	
@@ -182,25 +163,30 @@ class TestManim(Scene):
 				self.play(FadeIn(g), run_time=1.5)
 				initial_tree = g
 			else:
-				morph_tree = initial_tree.copy()
-				self.add(morph_tree)
-				self.play(morph_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))))
+				move_tree = initial_tree.copy()
 
-				self.play(Transform(initial_tree,g), run_time=1.5)
+				self.add(move_tree)
+
+				self.play(LaggedStart(
+					move_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))),
+					Transform(initial_tree,g),
+					lag_ratio=0.5),
+					run_time=1.5)
 				self.add(g)
 				self.remove(initial_tree)
 				initial_tree = g
 
 			counter += 1
 			self.wait(0.5)
-		self.play(initial_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))))
-		self.wait(2)
+		self.play(LaggedStart(
+			initial_tree.animate.scale(0.4).move_to(LEFT * (6 - 2*((counter-1) % 4)) + UP * (3 - 2*((counter-1) // 4))),
+			Write(Text("Thanks for\nwatching!", font_size=80).move_to(RIGHT * 4)),
+			lag_ratio=0.5),
+			run_time=1.5)
 		
-		#num = DecimalNumber().set_color(WHITE).scale(5)
-		#self.add(num)
-		#self.play(Count(num, 10, 100), run_time=4.0)
+		self.wait(2)
 
-
+# The first 4 trees are pre-generated with a specific pattern to simplify later generation
 t0 = Tree()
 t0.color = "A"
 trees.append(t0)
