@@ -1,3 +1,4 @@
+from this import s
 from typing import Callable
 from manim import *
 
@@ -32,6 +33,13 @@ def homotopy_function(x, y, z, t):
 		y + np.sin(PI * t),
 		z))
 
+def distort_function(x, y, z, t):
+	return (1-0.3 * np.sin(PI * t)) * np.array((
+		x+t*np.sin(y),
+		y + np.sin(PI * t),
+		z))
+def shift_function(x, y, z, t):
+	return (x, y, z + 1*t + 0.5 *t * np.cos(2 * y))
 
 class ChangeCoordinates(Scene):
 	def construct(self):
@@ -98,13 +106,6 @@ class ChangeCoordinates(Scene):
 		end_space.move_to(start_space.get_center())
 
 
-		arrow = CurvedArrow(2*LEFT + UP, 2*RIGHT + UP, color=RED)
-		arrow.set_stroke(width=7,color=RED)
-		arrow.flip(RIGHT).stretch_to_fit_height(0.7)
-
-		function_label=Tex(r"F(U)", font_size = 80)
-
-
 		#Prevent these objects from appearing during animations
 		start_axes.set_opacity(0)
 		start_curve.set_opacity(0)
@@ -118,11 +119,11 @@ class ChangeCoordinates(Scene):
 		intro_text = Tex(
 			"""\\raggedright {Let ${U}$ and ${G}$ be topological sets, and let ${F}$ be a homeomorphism ${F:U \\longrightarrow G}$.\\\\
 			This means that ${U}$ and ${G}$ will have similar properties.\\\\
-			Anything that can be done in ${U}$ can also be done in ${G}$}""")
+			Anything that can be done in ${U}$ can also be done in ${G}$.}""")
 		intro_text.scale(0.5).shift(RIGHT * 2)
 
 		self.play(Write(intro_text))
-		self.wait(2)
+		self.wait(3)
 
 		big_u = Tex("U").move_to(start_space.get_center())
 		self.play(FadeIn(big_u), run_time=2)
@@ -131,10 +132,15 @@ class ChangeCoordinates(Scene):
 		self.wait(1.5)
 
 	#Homeomorphism scene
-
 		self.remove(big_u)
 		self.add(start_patch)
 		self.add(end_patch)
+
+		arrow = CurvedArrow(2*LEFT + UP, 2*RIGHT + UP, color=RED)
+		arrow.set_stroke(width=7,color=RED)
+		arrow.flip(RIGHT).stretch_to_fit_height(0.7)
+
+		function_label=Tex(r"F(U)", font_size = 80)
 
 		self.play(
 			FadeOut(intro_text, run_time=0.6), 
@@ -189,3 +195,89 @@ class ChangeCoordinates(Scene):
 
 		self.play(Write(outro_text))
 		self.wait(5)
+
+	#Transition scene
+
+		self.play(
+			AnimationGroup(end_space.animate.move_to((0,0,0)), run_time=2),
+			FadeOut(start_space),
+			FadeOut(arrow),
+			FadeOut(function_label),
+			FadeOut(outro_text),
+			end_curve.animate.set_opacity(0))
+		transition_text = Tex("\\text {We can even imagine an embedding in 3D space}")
+		transition_text.scale(0.8).shift(DOWN * 3)
+		self.play(Write(transition_text))	
+
+
+
+class ThreeDTransition(ThreeDScene):
+	def construct(self):
+		axes = ThreeDAxes(
+			tips=False,
+			x_range=(-7,7,1),
+			y_range=(-4,4,1),
+			z_range=(-4,4,1),
+			x_length = round(config.frame_width) - 2,
+			y_length = round(config.frame_height) - 2,
+			z_length = round(config.frame_width) - 2,
+		).set_opacity(0.4)
+
+		boundary = ParametricFunction(
+			lambda t: axes.c2p(*patch_boundary(t)),
+			t_range=[0,4],
+		)
+		boundary.set_stroke(color=YELLOW)
+		boundary.set_fill(color=GREY)
+
+		grid = VGroup()
+		for i in range(-5,5+1):
+			h = ParametricFunction(
+				lambda t: line_function(
+					axes.c2p(*(-1,0.5*i,0)),
+					axes.c2p(*( 1,0.5*i,0)),
+					t)).set_stroke(color=BLUE, opacity=0.7, width=2)
+			grid.add(h)
+		for i in range (-1, 1+1):
+			v = ParametricFunction(
+				lambda t: line_function(
+					axes.c2p(*(0.5*i,-3,0)),
+					axes.c2p(*(0.5*i, 3,0)),
+					t)).set_stroke(color=BLUE, opacity=0.7, width=2)
+			grid.add(v)
+
+		patch = VGroup(boundary, grid)
+
+		patch.apply_function(lambda p: distort_function(*p, 1))
+
+		self.add(patch)
+
+		transition_text = Tex("\\text {We can even imagine an embedding in 3D space}")
+		transition_text.scale(0.8).shift(DOWN * 3)
+		self.add(transition_text)	
+
+		self.wait(0.5)
+
+		self.move_camera(phi=50 * DEGREES, theta=-30*DEGREES)
+		self.begin_3dillusion_camera_rotation(rate=0.1)
+		self.play(
+			FadeOut(transition_text),
+			boundary.animate.set_fill(opacity=0.2),
+			Create(axes, run_time=1.5))
+		self.play(Homotopy(shift_function, patch, run_time=3))
+
+		topology_text = Text("This space retains the same topological properties as before.", font_size=30)
+		topology_text.shift(DOWN * 3)
+		self.add_fixed_in_frame_mobjects(topology_text)
+		self.play(Write(topology_text))
+		
+		self.wait(2)
+		self.play(FadeOut(topology_text))
+		
+		outro_text = Text("Thanks for watching!", font_size=40)
+		outro_text.shift(DOWN * 3)
+		self.add_fixed_in_frame_mobjects(outro_text)
+		self.play(Write(outro_text))
+
+		self.wait(6)
+		self.stop_3dillusion_camera_rotation()
