@@ -117,9 +117,9 @@ class ChangeCoordinates(Scene):
 	#Intro scene
 
 		intro_text = Tex(
-			"""\\raggedright {Let ${U}$ and ${G}$ be topological sets, and let ${F}$ be a homeomorphism ${F:U \\longrightarrow G}$.\\\\
-			This means that ${U}$ and ${G}$ will have similar properties.\\\\
-			Anything that can be done in ${U}$ can also be done in ${G}$.}""")
+			"""\\raggedright {Let ${U}$ and ${V}$ be topological sets, and let ${F}$ be a homeomorphism ${F:U \\longrightarrow V}$.\\\\
+			This means that ${U}$ and ${V}$ will have similar properties.\\\\
+			Anything that can be done in ${U}$ can also be done in ${V}$.}""")
 		intro_text.scale(0.5).shift(RIGHT * 2)
 
 		self.play(Write(intro_text))
@@ -140,7 +140,7 @@ class ChangeCoordinates(Scene):
 		arrow.set_stroke(width=7,color=RED)
 		arrow.flip(RIGHT).stretch_to_fit_height(0.7)
 
-		function_label=Tex(r"F(U)", font_size = 80)
+		function_label=Tex("${F(U)}$", font_size = 80)
 
 		self.play(
 			FadeOut(intro_text, run_time=0.6), 
@@ -157,7 +157,7 @@ class ChangeCoordinates(Scene):
 		end_point.add_updater(
 			lambda point: point.move_to(homotopy_function(*start_point.get_center(),1))
 		)	
-		points_text = Tex("\\text {Every point in ${U}$ corresponds to a point in the image ${F(U) = G}$ }")
+		points_text = Tex("\\text {Every point in ${U}$ corresponds to a point in the image ${F(U) = V}$ }")
 		points_text.scale(0.8).shift(DOWN * 3)
 
 		self.play(Write(points_text))
@@ -173,7 +173,7 @@ class ChangeCoordinates(Scene):
 
 	#Curve scene
 
-		curves_text = Tex("\\text {Likewise, every curve in ${U}$ corresponds to a curve in ${G}$")
+		curves_text = Tex("\\text {Likewise, every curve in ${U}$ corresponds to a curve in ${V}$")
 		curves_text.scale(0.8).shift(DOWN * 3)
 		
 		self.play(Write(curves_text))
@@ -190,7 +190,7 @@ class ChangeCoordinates(Scene):
 
 	#Outro scene
 
-		outro_text = Tex("\\text {From a topological perspective, ${U}$ and ${G}$ are the same space!")
+		outro_text = Tex("\\text {From a topological perspective, ${U}$ and ${V}$ are the same space!")
 		outro_text.scale(0.8).shift(DOWN * 3)
 
 		self.play(Write(outro_text))
