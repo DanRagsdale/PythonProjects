@@ -46,7 +46,9 @@ def exit_handler():
 atexit.register(exit_handler)
 
 
-with open (FOLDER_LOCATION + '/' + FILE_NAME, 'r+', newline='\n') as csvfile :
+Path(FOLDER_LOCATION).mkdir(parents=True, exist_ok=True)
+with open (FOLDER_LOCATION + '/' + FILE_NAME, 'a+', newline='\n') as csvfile :
+	csvfile.seek(0)
 	testReader = csv.DictReader(csvfile)
 	print(testReader)
 	for row in testReader:

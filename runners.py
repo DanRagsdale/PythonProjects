@@ -74,7 +74,7 @@ def is_dominated(candidate, elite):
 			return False
 	return True
 
-elites.add("Kenenisa Bekele")
+#elites.add("Kenenisa Bekele")
 
 print("*****************")
 print()
@@ -88,15 +88,15 @@ for key in runner_prs.keys():
 		if is_dominated(key, elite):
 			runner_dominated = True
 		if is_dominated(elite, key):
-			if elite == "Kenenisa Bekele":
-				print("Bekele removed by " + str(key))
 			elites.remove(elite)
 		
 	if runner_dominated != True:
 		elites.add(key)
 
+sorted_elites = list(elites)
+sorted_elites.sort()
 
-for elite in elites:
+for elite in sorted_elites:
 	disp_list = [''] * 5
 	for i in range(0, event_count):
 		event_time = runner_prs[elite][i]
