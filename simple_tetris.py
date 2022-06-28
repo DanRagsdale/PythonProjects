@@ -2,6 +2,8 @@ import pygame
 import sys, os
 import random
 
+from pathlib import Path
+
 from pygame.locals import (
 	K_UP,
 	K_DOWN,
@@ -20,8 +22,7 @@ SCREEN_HEIGHT = 800
 BLOCK_SIZE = SCREEN_WIDTH / 10
 
 FIXPIECE = pygame.USEREVENT + 1
-
-board = [[0 for y in range(20)] for x in range(10)] 
+GAMEOVER = pygame.USEREVENT + 2
 
 PIECES = [
   [(0,0),(0,0),(0,0),(0,0)],
@@ -57,6 +58,47 @@ IMAGE_SOURCES = [
 
 IMAGES = [None]
 
+pygame.init()
+pygame.font.init()
+
+window = pygame.display.set_mode([SCREEN_WIDTH + 300, SCREEN_HEIGHT + 100])
+screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+gui = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+pygame.display.set_caption("Simple Tetris")
+
+font = pygame.font.SysFont("Arial Black", 30)
+
+
+pygame.key.set_repeat(160, 50)
+
+module = sys.modules['__main__']
+path, name = os.path.split(module.__file__)
+
+for tag in IMAGE_SOURCES:
+	print(os.path.join(path, "res", "tetris", tag))
+	img = pygame.image.load(os.path.join(path, "res", "tetris", tag))
+	img.convert()
+
+	IMAGES.append(img)
+
+
+clear_multiplier = [0, 40, 100, 300, 1200]
+
+high_score = 0
+
+FOLDER_LOCATION = 'data/simple_tetris'
+FILE_NAME = 'high_score.txt'
+
+Path(FOLDER_LOCATION).mkdir(parents=True, exist_ok=True)
+with open (FOLDER_LOCATION + '/' + FILE_NAME, 'a+', newline='\n') as f:
+	f.seek(0)
+	line = f.readline()
+	if line.isdigit():
+		high_score = int(line)
+	
+
+# Begin game logic
 class Piece(pygame.sprite.Sprite):
 	def __init__(self):
 		super(Piece, self).__init__()
@@ -127,7 +169,10 @@ class Piece(pygame.sprite.Sprite):
 		if can_drop:
 			self.y += 1
 		else:
-			pygame.event.post(pygame.event.Event(FIXPIECE))
+			if self.y == 0:
+				pygame.event.post(pygame.event.Event(GAMEOVER))
+			else:
+				pygame.event.post(pygame.event.Event(FIXPIECE))
 			return False
 
 	def draw(self, screen):
@@ -138,39 +183,29 @@ class Piece(pygame.sprite.Sprite):
 			rect = (origin_x + point[0] * BLOCK_SIZE, origin_y + point[1] * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 			pygame.Surface.blit(screen,IMAGES[self.block_type], rect)
 
-window = pygame.display.set_mode([SCREEN_WIDTH + 300, SCREEN_HEIGHT + 100])
-screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-gui = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+board = piece = next_piece = clock = current_frame = last_frame = last_fix = drop_frames = lines_cleared = score = None
 
-pygame.init()
+def reset_board():
+	global board, piece, next_piece, clock, current_frame, last_frame, last_fix, drop_frames, lines_cleared, score
+	board = [[0 for y in range(20)] for x in range(10)] 
 
-pygame.key.set_repeat(160, 50)
+	piece = Piece()
+	next_piece = Piece()
+	clock = pygame.time.Clock()
 
-module = sys.modules['__main__']
-path, name = os.path.split(module.__file__)
+	current_frame = 0
+	last_frame = 0
+	last_fix = 0
+	drop_frames = 70
 
-for tag in IMAGE_SOURCES:
-	print(os.path.join(path, "res", "tetris", tag))
-	img = pygame.image.load(os.path.join(path, "res", "tetris", tag))
-	img.convert()
+	lines_cleared = 0
+	score = 0
 
-	IMAGES.append(img)
-
-# Begin game code
-piece = Piece()
-next_piece = Piece()
-clock = pygame.time.Clock()
-
-current_frame = 0
-last_frame = 0
-last_fix = 0
-drop_frames = 70
-
-lines_cleared = 0
+reset_board()
 
 running = True
 alive = True
-while alive:
+while running:
 	# Event Handler
 	events = pygame.event.get()
 	for event in events:
@@ -184,7 +219,7 @@ while alive:
 			alive = False
 
 
-	if running:
+	if alive:
 		pressed_keys = pygame.key.get_pressed()
 		for event in events:
 			if event.type == KEYDOWN:
@@ -201,10 +236,19 @@ while alive:
 				elif event.key == K_SPACE and current_frame - last_fix > 30:
 					while piece.drop() != False:
 						pass
+			elif event.type == GAMEOVER:
+				alive = False
+				reset_board()
+				print()
+				print("Game Over!")
+				print()
+
 			elif event.type == FIXPIECE and current_frame !=  last_fix:
 				# add the current piece to the board, clear completed lines and create a new piece	
 				for point in piece.points:
 					board[piece.x + point[0]][piece.y + point[1]] = piece.block_type
+				
+				initial_lines = lines_cleared
 
 				y = 19
 				while y > 0:
@@ -227,6 +271,11 @@ while alive:
 								board[x][y1] = board[x][y1 - 1]
 					else:
 						y -= 1
+
+				score += clear_multiplier[lines_cleared - initial_lines] * (lines_cleared // 10 + 1)
+				if score > high_score:
+					high_score = score
+				
 				piece = next_piece
 				next_piece = Piece()
 				last_fix = current_frame
@@ -234,8 +283,17 @@ while alive:
 		if current_frame - last_frame > drop_frames:
 			piece.drop()
 			last_frame = current_frame
+	else:
+		for event in events:
+			if event.type == KEYDOWN:
+				if event.key == K_SPACE:
+					reset_board
+					alive = True
 
-		# Game Code
+	current_frame += 1
+
+		# Render Code
+	if alive:
 		screen.fill((0,0,0))
 		piece.draw(screen)
 
@@ -248,19 +306,44 @@ while alive:
 					rect = (origin_x, origin_y, BLOCK_SIZE, BLOCK_SIZE)
 					pygame.Surface.blit(screen,IMAGES[board[x][y]], rect)
 
-		current_frame += 1
-		
-		window.fill((128,128,128))
-		
 		gui.fill((128,128,128))
 		next_piece.draw(gui)
-		pygame.Surface.blit(window, gui, (350, 100))
-		pygame.Surface.blit(window, screen, (50,50))
+
+		score_text = font.render('Score: ' + str(score), False, (0,0,0))
+		lines_text = font.render('Lines: ' + str(lines_cleared), False, (0,0,0))
+
+		if score == high_score:
+			hs_text = font.render('Best: ' + str(high_score), True, (255,0,0),(0,0,0))
+		else:
+			hs_text = font.render('Best: ' + str(high_score), False, (0,0,0))
+
+		pygame.Surface.blit(gui,score_text, (2.5 * BLOCK_SIZE, 5 * BLOCK_SIZE))
+		pygame.Surface.blit(gui,lines_text, (2.5 * BLOCK_SIZE, 6 * BLOCK_SIZE))
+		pygame.Surface.blit(gui,hs_text, (2.5 * BLOCK_SIZE, 9 * BLOCK_SIZE))
+	else:
+		gameover_text0 = font.render('Game Over', True, (255,255,255),(0,0,0))
+		gameover_text1 = font.render('Press SPACE to reset', True, (255,255,255),(0,0,0))
+		pygame.Surface.blit(screen, gameover_text0, (2.5 * BLOCK_SIZE, 4 * BLOCK_SIZE))
+		pygame.Surface.blit(screen, gameover_text1, (0.5 * BLOCK_SIZE, 5 * BLOCK_SIZE))
+
+		
+	window.fill((128,128,128))
+		
+	pygame.Surface.blit(window, gui, (350, 100))
+	pygame.Surface.blit(window, screen, (50,50))
 
 	pygame.display.flip()
 	clock.tick(120)
 
+# Save high score
+
+Path(FOLDER_LOCATION).mkdir(parents=True, exist_ok=True)
+with open (FOLDER_LOCATION + '/' + FILE_NAME, 'w+', newline='\n') as f:
+	f.write(str(high_score))
+
 pygame.quit()
+
+
 
 
 
