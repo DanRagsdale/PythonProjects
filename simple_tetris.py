@@ -69,7 +69,6 @@ pygame.display.set_caption("Simple Tetris")
 
 font = pygame.font.SysFont("Arial Black", 30)
 
-
 pygame.key.set_repeat(160, 50)
 
 module = sys.modules['__main__']
@@ -84,8 +83,8 @@ for tag in IMAGE_SOURCES:
 
 
 clear_multiplier = [0, 40, 100, 300, 1200]
-
 high_score = 0
+
 
 FOLDER_LOCATION = 'data/simple_tetris'
 FILE_NAME = 'high_score.txt'
@@ -212,11 +211,9 @@ while running:
 		if event.type == KEYDOWN:
 			if event.key == K_ESCAPE:
 				running = False
-				alive = False
 
 		elif event.type == QUIT:
 			running = False
-			alive = False
 
 
 	if alive:
@@ -238,10 +235,6 @@ while running:
 						pass
 			elif event.type == GAMEOVER:
 				alive = False
-				reset_board()
-				print()
-				print("Game Over!")
-				print()
 
 			elif event.type == FIXPIECE and current_frame !=  last_fix:
 				# add the current piece to the board, clear completed lines and create a new piece	
@@ -258,17 +251,16 @@ while running:
 							flag = False
 					if flag:
 						lines_cleared += 1
+						for y1 in range(y, 0, -1):
+							for x in range(10):
+								board[x][y1] = board[x][y1 - 1]
+
 						if lines_cleared % 10 == 0:
 							if(drop_frames > 30):
 								drop_frames = int(drop_frames * 0.9)
 							else:
 								drop_frames = int(drop_frames * 0.95)
 							print("Drop frames: ", drop_frames)
-
-						print(str(lines_cleared) + " lines cleared")
-						for y1 in range(y, 0, -1):
-							for x in range(10):
-								board[x][y1] = board[x][y1 - 1]
 					else:
 						y -= 1
 
@@ -287,7 +279,7 @@ while running:
 		for event in events:
 			if event.type == KEYDOWN:
 				if event.key == K_SPACE:
-					reset_board
+					reset_board()
 					alive = True
 
 	current_frame += 1
