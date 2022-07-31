@@ -200,6 +200,9 @@ def reset_board():
 	lines_cleared = 0
 	score = 0
 
+
+# Begin game loop
+
 reset_board()
 
 running = True
@@ -284,7 +287,7 @@ while running:
 
 	current_frame += 1
 
-		# Render Code
+	# Render Code
 	if alive:
 		screen.fill((0,0,0))
 		piece.draw(screen)
