@@ -2,6 +2,7 @@ import pygame
 import random
 import sys, os
 import copy
+import time
 
 from pygame.locals import (
 	K_1,
@@ -96,30 +97,64 @@ def check_board(test_board):
 def eval_position(test_board):
 	return 1000 * check_board(test_board)
 
-def eval_board(test_board, test_turn, depth):
-	# if the board has 4 in a row, return +/- 1000
+total_time = 0
+
+def copy_board(test_board):
+	new_board = [[test_board[x][y] for y in range(6)] for x in range(7)] 
+	return new_board
+
+eval_count = 0
+
+def search_move(test_board, test_turn, alpha, beta, depth):
+	global eval_count, total_time
+	eval_count += 1
+
+	if depth == 0:
+		end_eval = eval_position(test_board)
+
+		return end_eval
+
+	start_time = time.perf_counter()
 	check_result = check_board(test_board)
+	total_time += time.perf_counter() - start_time
+
 	if check_result:
 		return check_result * 1000
-	
-	if depth == 0:
-		return eval_position(test_board)
 
 	# otherwise check possible options until depth is reached
-	evals = []
 
-	for i in range(0,7):
-		copy_board = copy.deepcopy(test_board)
-		drop_piece(copy_board, i, test_turn)
-		evals.append(test_turn * eval_board(copy_board, test_turn * -1, depth - 1))
+	if test_turn == 1:
+		for i in range(0,7):
+			board_copy = copy_board(test_board)
+
+			drop_piece(board_copy, i, test_turn)
+			eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1)
+
+			if eval_value >= beta:
+				return beta
+			if eval_value > alpha:
+				alpha = eval_value
+		return 0.99 * alpha
+	elif test_turn == -1:
+		for i in range(0,7):
+			board_copy = copy_board(test_board)
+			drop_piece(board_copy, i, test_turn)
+			eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1)
+
+			if eval_value <= alpha:
+				return alpha
+			if eval_value < beta:
+				beta = eval_value
+		return 0.99 * beta
 	
-	eval = test_turn * max(evals)
+	#evals = []
+	#eval = test_turn * max(evals)
 
-	#Prioritize avoiding quick losses/ going for quick wins if there are multiple forced wins
-	if abs(eval) > 500:
-		return 0.95 * eval
-	else:
-		return eval
+	##Prioritize avoiding quick losses/ going for quick wins if there are multiple forced wins
+	#if abs(eval) > 500:
+	#	return 0.99 * eval
+	#else:
+	#	return eval
 
 def generate_move(test_board, test_turn):
 	#for i in range(0,7):
@@ -127,11 +162,17 @@ def generate_move(test_board, test_turn):
 	#	drop_piece(copy_board, i, test_turn)
 	#	if eval_board(copy_board, test_turn, 5) < 0:
 	#		return i
+	global eval_count, total_time
+	eval_count = 0	
+
+	start_time = time.perf_counter()
+	total_time = 0
+
 	evals = []
 	for i in range(0,7):
 		copy_board = copy.deepcopy(test_board)
 		drop_piece(copy_board, i, test_turn)
-		evals.append(eval_board(copy_board, test_turn * -1, 5))
+		evals.append(search_move(copy_board, test_turn * -1, -10000, 10000, 7)) #Time testing with 7
 
 	target = 1000
 	index = -1
@@ -142,7 +183,10 @@ def generate_move(test_board, test_turn):
 		if evals[i] < target and test_board[i][0] == 0:
 			target = evals[i]
 			index = i
-	
+		
+	duration = time.perf_counter() - start_time
+	print("Evaluation Count:  " + str(eval_count) + "   " + str(total_time) + " in " + str(duration))
+
 	return index
 		
 
