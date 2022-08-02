@@ -1,3 +1,4 @@
+from tkinter import W
 import pygame
 import random
 import sys, os
@@ -59,12 +60,18 @@ def reset_game():
 	board = [[0 for y in range(6)] for x in range(7)] 
 	current_turn = 1
 
+total_time = 0
+
+def copy_board(test_board):
+	return [x[:] for x in test_board] 
+
 def drop_piece(test_board, column, type):
 	for i in range(5,-1,-1):
 		if test_board[column][i] == 0:
 			test_board[column][i] = type
-			return True
-	return False
+			return i + 1
+	return 0
+
 
 def check_board(test_board):
 	#Vertical
@@ -92,69 +99,105 @@ def check_board(test_board):
 	for x in range(0,7):
 		if test_board[x][0] == 0:
 			return 0
+
 	return 2
 
-def eval_position(test_board):
-	return 1000 * check_board(test_board)
+def fast_check(test_board, last_x, last_y):
+	#Vertical
+	if last_y >-1 and last_y < 3 and test_board[last_x][last_y+0] == test_board[last_x][last_y+1] == test_board[last_x][last_y+2] == test_board[last_x][last_y+3]:
+		return test_board[last_x][last_y]
+	if last_y > 0 and last_y < 4 and test_board[last_x][last_y-1] == test_board[last_x][last_y+0] == test_board[last_x][last_y+1] == test_board[last_x][last_y+2]:
+		return test_board[last_x][last_y]
+	if last_y > 1 and last_y < 5 and test_board[last_x][last_y-2] == test_board[last_x][last_y-1] == test_board[last_x][last_y+0] == test_board[last_x][last_y+1]:
+		return test_board[last_x][last_y]
+	if last_y > 2 and last_y < 5 and test_board[last_x][last_y-3] == test_board[last_x][last_y-2] == test_board[last_x][last_y-1] == test_board[last_x][last_y+0]:
+		return test_board[last_x][last_y]
+	#Horizontal
+	if  last_x >-1 and last_x < 4 and test_board[last_x+0][last_y] == test_board[last_x+1][last_y] == test_board[last_x+2][last_y] == test_board[last_x+3][last_y]:
+		return test_board[last_x][last_y]
+	if last_x > 0 and last_x < 5 and test_board[last_x-1][last_y] == test_board[last_x+0][last_y] == test_board[last_x+1][last_y] == test_board[last_x+2][last_y]:
+		return test_board[last_x][last_y]
+	if last_x > 1 and last_x < 6 and test_board[last_x-2][last_y] == test_board[last_x-1][last_y] == test_board[last_x+0][last_y] == test_board[last_x+1][last_y]:
+		return test_board[last_x][last_y]
+	if last_x > 2 and                test_board[last_x-3][last_y] == test_board[last_x-2][last_y] == test_board[last_x-1][last_y] == test_board[last_x+0][last_y]:
+		return test_board[last_x][last_y]
+	#Diagonal Down
+	if last_x >-1 and last_x < 4 and last_y >-1 and last_y < 3 and test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y+1] == test_board[last_x+2][last_y+2] == test_board[last_x+3][last_y+3]:
+		return test_board[last_x][last_y]
+	if last_x > 0 and last_x < 5 and last_y > 0 and last_y < 4 and test_board[last_x-1][last_y-1] == test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y+1] == test_board[last_x+2][last_y+2]:
+		return test_board[last_x][last_y]
+	if last_x > 1 and last_x < 6 and last_y > 1 and last_y < 5 and test_board[last_x-2][last_y-2] == test_board[last_x-1][last_y-1] == test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y+1]:
+		return test_board[last_x][last_y]
+	if last_x > 2 and last_x < 7 and last_y > 2 and last_y < 6 and test_board[last_x-3][last_y-3] == test_board[last_x-2][last_y-2] == test_board[last_x-1][last_y-1] == test_board[last_x+0][last_y+0]:
+		return test_board[last_x][last_y]
+	#Diagonal Up
+	if last_x >-1 and last_x < 4 and last_y > 2 and last_y < 6 and test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y-1] == test_board[last_x+2][last_y-2] == test_board[last_x+3][last_y-3]:
+		return test_board[last_x][last_y]
+	if last_x > 0 and last_x < 5 and last_y > 1 and last_y < 5 and test_board[last_x-1][last_y+1] == test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y-1] == test_board[last_x+2][last_y-2]:
+		return test_board[last_x][last_y]
+	if last_x > 1 and last_x < 6 and last_y > 0 and last_y < 4 and test_board[last_x-2][last_y+2] == test_board[last_x-1][last_y+1] == test_board[last_x+0][last_y+0] == test_board[last_x+1][last_y-1]:
+		return test_board[last_x][last_y]
+	if last_x > 2 and last_x < 7 and last_y >-1 and last_y < 3 and test_board[last_x-3][last_y+3] == test_board[last_x-2][last_y+2] == test_board[last_x-1][last_y+1] == test_board[last_x+0][last_y+0]:
+		return test_board[last_x][last_y]
 
-total_time = 0
+	return 0
 
-def copy_board(test_board):
-	new_board = [[test_board[x][y] for y in range(6)] for x in range(7)] 
-	return new_board
+board_cache = {}
+
+def eval_position(test_board, last_x, last_y):
+	global total_time
+	cache_key = tuple(map(tuple, test_board))
+
+	if cache_key in board_cache:
+		return board_cache[cache_key]
+	
+	eval = 1000 * fast_check(test_board, last_x, last_y)
+	board_cache[cache_key] = eval
+	return eval
+
 
 eval_count = 0
 
-def search_move(test_board, test_turn, alpha, beta, depth):
+def search_move(test_board, test_turn, alpha, beta, depth, last_x, last_y):
 	global eval_count, total_time
 	eval_count += 1
 
-	if depth == 0:
-		end_eval = eval_position(test_board)
-
-		return end_eval
-
 	start_time = time.perf_counter()
-	check_result = check_board(test_board)
+	eval = eval_position(test_board, last_x, last_y)
 	total_time += time.perf_counter() - start_time
 
-	if check_result:
-		return check_result * 1000
+	if depth == 0 or abs(eval) == 1000:
+		return eval
 
 	# otherwise check possible options until depth is reached
 
 	if test_turn == 1:
 		for i in range(0,7):
-			board_copy = copy_board(test_board)
+			if test_board[i][0] == 0:
+				board_copy = copy_board(test_board)
 
-			drop_piece(board_copy, i, test_turn)
-			eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1)
+				drop_height = drop_piece(board_copy, i, test_turn) - 1
+				eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
 
-			if eval_value >= beta:
-				return beta
-			if eval_value > alpha:
-				alpha = eval_value
+				if eval_value >= beta:
+					return beta
+				if eval_value > alpha:
+					alpha = eval_value
 		return 0.99 * alpha
 	elif test_turn == -1:
 		for i in range(0,7):
-			board_copy = copy_board(test_board)
-			drop_piece(board_copy, i, test_turn)
-			eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1)
+			if test_board[i][0] == 0:
+				board_copy = copy_board(test_board)
 
-			if eval_value <= alpha:
-				return alpha
-			if eval_value < beta:
-				beta = eval_value
+				drop_height = drop_piece(board_copy, i, test_turn) - 1
+				eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
+
+				if eval_value <= alpha:
+					return alpha
+				if eval_value < beta:
+					beta = eval_value
 		return 0.99 * beta
-	
-	#evals = []
-	#eval = test_turn * max(evals)
 
-	##Prioritize avoiding quick losses/ going for quick wins if there are multiple forced wins
-	#if abs(eval) > 500:
-	#	return 0.99 * eval
-	#else:
-	#	return eval
 
 def generate_move(test_board, test_turn):
 	#for i in range(0,7):
@@ -168,11 +211,32 @@ def generate_move(test_board, test_turn):
 	start_time = time.perf_counter()
 	total_time = 0
 
+	# Avoid waits for forced moves
+	#for i in range(0,7):
+	#	board_copy = copy_board(test_board)
+	#	drop_height = drop_piece(board_copy, i, test_turn) - 1
+
+	#	if fast_check(board_copy, i, drop_height):
+	#		return i
+
+	#for i in range(0,7):	
+	#	board_copy = copy_board(test_board)
+	#	drop_height = drop_piece(board_copy, i, -1 * test_turn) - 1
+
+	#	if fast_check(board_copy, i, drop_height):
+	#		return i
+		
+
 	evals = []
 	for i in range(0,7):
-		copy_board = copy.deepcopy(test_board)
-		drop_piece(copy_board, i, test_turn)
-		evals.append(search_move(copy_board, test_turn * -1, -10000, 10000, 7)) #Time testing with 7
+		if test_board[i][0] != 0:
+			evals.append(10000)
+		else:
+			board_copy = copy_board(test_board)
+			drop_height = drop_piece(board_copy, i, test_turn) - 1
+
+			evals.append(search_move(board_copy, test_turn * -1, -10000, 10000, 8, i, drop_height)) #Time testing with 7
+
 
 	target = 1000
 	index = -1
@@ -180,7 +244,7 @@ def generate_move(test_board, test_turn):
 	print(evals)
 	shuffled_range = random.sample(range(0,7), 7)
 	for i in shuffled_range:
-		if evals[i] < target and test_board[i][0] == 0:
+		if evals[i] < target:
 			target = evals[i]
 			index = i
 		
@@ -236,7 +300,6 @@ while running:
 				state = 0
 
 	elif state == 2:
-		print(eval_board(board,current_turn,6))
 		for event in events:	
 			if event.type == KEYDOWN:	
 				if event.key in range(K_1,K_7+1) and drop_piece(board, event.key - K_1, current_turn):
