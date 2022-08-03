@@ -17,6 +17,7 @@ from pygame.locals import (
 	K_SPACE,
 	K_ESCAPE,
 	KEYDOWN,
+	MOUSEBUTTONDOWN,
 	QUIT
 	)
 
@@ -142,22 +143,33 @@ def fast_check(test_board, last_x, last_y):
 
 	return 0
 
-board_cache = {}
-
 def eval_position(test_board, last_x, last_y):
-	global total_time
-	cache_key = tuple(map(tuple, test_board))
-
-	if cache_key in board_cache:
-		return board_cache[cache_key]
-	
 	eval = 1000 * fast_check(test_board, last_x, last_y)
-	board_cache[cache_key] = eval
 	return eval
 
 
 eval_count = 0
 
+search_cache = {}
+#permanent_cache = {}
+
+def cached_search(test_board, test_turn, alpha, beta, depth, last_x, last_y):
+	cache_key = tuple(map(tuple, test_board))
+
+	#if cache_key in permanent_cache:
+	#	return permanent_cache[cache_key]
+	if cache_key in search_cache:
+		return search_cache[cache_key]
+	
+	eval = search_move(test_board, test_turn, alpha, beta, depth, last_x, last_y)
+	search_cache[cache_key] = eval
+
+	#if abs(eval > 500):
+	#	permanent_cache[cache_key] = eval
+
+	return eval
+	
+search_order = (3,4,2,5,1,6,0)
 def search_move(test_board, test_turn, alpha, beta, depth, last_x, last_y):
 	global eval_count, total_time
 	eval_count += 1
@@ -172,12 +184,12 @@ def search_move(test_board, test_turn, alpha, beta, depth, last_x, last_y):
 	# otherwise check possible options until depth is reached
 
 	if test_turn == 1:
-		for i in range(0,7):
+		for i in search_order:
 			if test_board[i][0] == 0:
 				board_copy = copy_board(test_board)
 
 				drop_height = drop_piece(board_copy, i, test_turn) - 1
-				eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
+				eval_value = cached_search(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
 
 				if eval_value >= beta:
 					return beta
@@ -185,12 +197,12 @@ def search_move(test_board, test_turn, alpha, beta, depth, last_x, last_y):
 					alpha = eval_value
 		return 0.99 * alpha
 	elif test_turn == -1:
-		for i in range(0,7):
+		for i in search_order:
 			if test_board[i][0] == 0:
 				board_copy = copy_board(test_board)
 
 				drop_height = drop_piece(board_copy, i, test_turn) - 1
-				eval_value = search_move(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
+				eval_value = cached_search(board_copy, test_turn * -1, alpha, beta, depth - 1, i, drop_height)
 
 				if eval_value <= alpha:
 					return alpha
@@ -205,26 +217,29 @@ def generate_move(test_board, test_turn):
 	#	drop_piece(copy_board, i, test_turn)
 	#	if eval_board(copy_board, test_turn, 5) < 0:
 	#		return i
-	global eval_count, total_time
+	global eval_count, total_time 
 	eval_count = 0	
 
 	start_time = time.perf_counter()
 	total_time = 0
 
+	global search_cache
+	search_cache = {}
+	
 	# Avoid waits for forced moves
-	#for i in range(0,7):
-	#	board_copy = copy_board(test_board)
-	#	drop_height = drop_piece(board_copy, i, test_turn) - 1
+	for i in range(0,7):
+		board_copy = copy_board(test_board)
+		drop_height = drop_piece(board_copy, i, test_turn) - 1
 
-	#	if fast_check(board_copy, i, drop_height):
-	#		return i
+		if fast_check(board_copy, i, drop_height):
+			return i
 
-	#for i in range(0,7):	
-	#	board_copy = copy_board(test_board)
-	#	drop_height = drop_piece(board_copy, i, -1 * test_turn) - 1
+	for i in range(0,7):	
+		board_copy = copy_board(test_board)
+		drop_height = drop_piece(board_copy, i, -1 * test_turn) - 1
 
-	#	if fast_check(board_copy, i, drop_height):
-	#		return i
+		if fast_check(board_copy, i, drop_height):
+			return i
 		
 
 	evals = []
@@ -235,7 +250,7 @@ def generate_move(test_board, test_turn):
 			board_copy = copy_board(test_board)
 			drop_height = drop_piece(board_copy, i, test_turn) - 1
 
-			evals.append(search_move(board_copy, test_turn * -1, -10000, 10000, 8, i, drop_height)) #Time testing with 7
+			evals.append(cached_search(board_copy, test_turn * -1, -10000, 10000, 9, i, drop_height)) #Time testing with 7
 
 
 	target = 1000
@@ -273,11 +288,22 @@ while running:
 			running = False
 
 
+	mouse_pos = pygame.mouse.get_pos()
+	button_sp = pygame.Rect(120,320,160,160)
+	button_mp = pygame.Rect(420,320,160,160)
+
 	if state == 0:
 		for event in events:
 			if event.type == KEYDOWN:
 				if event.key == K_SPACE:
 					state = 1
+					reset_game()
+			if event.type == MOUSEBUTTONDOWN:
+				if button_sp.left < mouse_pos[0] < button_sp.right and button_sp.top < mouse_pos[1] < button_sp.bottom:
+					state = 1
+					reset_game()
+				if button_mp.left < mouse_pos[0] < button_mp.right and button_mp.top < mouse_pos[1] < button_mp.bottom:
+					state = 2
 					reset_game()
 	elif state == 1:
 		if current_turn == 1:
@@ -324,9 +350,30 @@ while running:
 				pygame.Surface.blit(surf_board,IMAGES[int(-(board[x][y] - 1) / 2)], coord)
 
 	if state == 0:
-		menu_text = font.render("Press SPACE to begin a new game", True, (255,255,255),(0,0,0))	
-		menu_coord = menu_text.get_rect(center=(350,300))
-		pygame.Surface.blit(surf_board, menu_text, menu_coord)
+		menu_text = font.render("Select a game mode:", True, (255,255,255),(0,0,0))	
+		menu_coord = menu_text.get_rect(center=(350,200))
+		surf_board.blit(menu_text, menu_coord)
+
+		sp_text = font.render("1 Player", True, (255,255,255),(0,0,0))
+		sp_coord = sp_text.get_rect(center=button_sp.center)
+		
+		mp_text = font.render("2 Player", True, (255,255,255),(0,0,0))
+		mp_coord = sp_text.get_rect(center=button_mp.center)
+
+		if button_sp.left < mouse_pos[0] < button_sp.right and button_sp.top < mouse_pos[1] < button_sp.bottom:
+			surf_board.fill((180,0,0), button_sp)
+		else:
+			surf_board.fill((255,0,0), button_sp)
+
+		if button_mp.left < mouse_pos[0] < button_mp.right and button_mp.top < mouse_pos[1] < button_mp.bottom:
+			surf_board.fill((180,0,0), button_mp)
+		else:
+			surf_board.fill((255,0,0), button_mp)
+		
+		surf_board.blit(sp_text, sp_coord)
+		surf_board.blit(mp_text, mp_coord)
+
+
 	else:
 		pygame.Surface.blit(background,IMAGES[int(-(current_turn-1)/2)], (7*100, 0))
 
