@@ -89,26 +89,15 @@ class Player(pygame.sprite.Sprite):
 		# Constrain velocity based on raycasts
 		self.update_distances()
 
-		self.vel.y = max(min(self.vel.y, self.col_distances[2]), -self.col_distances[3])
-		print(self.col_distances[3])
+		self.vel.y = max(min(self.vel.y, self.col_distances[3]), -self.col_distances[2])
+		self.vel.x = max(min(self.vel.x, self.col_distances[1]), -self.col_distances[0])
+		#print(self.col_distances[2])
 
 
 		self.pos += self.vel
 		self.rect.midbottom = self.pos
 
 	def update_distances(self):
-		#Raycast downward
-		down_dists = [100000]
-
-		for test_plat in platforms:
-			if self.rect.bottom <= test_plat.rect.top + 2:
-				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.centerx < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.right < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
-
 		#Raycast upward
 		up_dists = [100000]
 		
@@ -121,11 +110,49 @@ class Player(pygame.sprite.Sprite):
 				if test_plat.rect.left < self.rect.right < test_plat.rect.right:
 					up_dists.append(max(self.rect.top - test_plat.rect.bottom, 0))
 
+		#Raycast downward
+		down_dists = [100000]
 
-		self.col_distances = (0,0, min(down_dists), min(up_dists))
+		for test_plat in platforms:
+			if self.rect.bottom <= test_plat.rect.top + 2:
+				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
+					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
+				if test_plat.rect.left < self.rect.centerx < test_plat.rect.right:
+					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
+				if test_plat.rect.left < self.rect.right < test_plat.rect.right:
+					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
+
+		#Raycast left
+		left_dists = [100000]
+		
+		for test_plat in platforms:
+			if self.rect.left >= test_plat.rect.right - 2:
+				if test_plat.rect.top < self.rect.top < test_plat.rect.bottom:
+					left_dists.append(max(self.rect.left - test_plat.rect.right, 0))
+				
+				if test_plat.rect.top < self.rect.centery < test_plat.rect.bottom:
+					left_dists.append(max(self.rect.left - test_plat.rect.right, 0))
+				
+				if test_plat.rect.top < self.rect.bottom < test_plat.rect.bottom:
+					left_dists.append(max(self.rect.left - test_plat.rect.right, 0))
+		
+		#Raycast right
+		right_dists = [100000]
+		
+		for test_plat in platforms:
+			if self.rect.right <= test_plat.rect.left + 2:
+				if test_plat.rect.top < self.rect.top < test_plat.rect.bottom:
+					right_dists.append(max(test_plat.rect.left - self.rect.right, 0))
+				if test_plat.rect.top < self.rect.centery < test_plat.rect.bottom:
+					right_dists.append(max(test_plat.rect.left - self.rect.right, 0))
+				if test_plat.rect.top < self.rect.bottom < test_plat.rect.bottom:
+					right_dists.append(max(test_plat.rect.left - self.rect.right, 0))
+
+
+		self.col_distances = (min(left_dists), min(right_dists), min(up_dists), min(down_dists))
 
 	def set_on_ground(self):
-		if self.col_distances[0] < 5:
+		if self.col_distances[3] < 5:
 			self.on_ground = 5
 
 		self.on_ground -= 1
@@ -148,15 +175,16 @@ class Player(pygame.sprite.Sprite):
 		#			self.pos.y = hit.rect.bottom + 2*BLOCK_SIZE
 		#			self.vel.y = 0
 
-		wall_hits = pygame.sprite.spritecollide(self, platforms, False)
-		for hit in wall_hits:
-			delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
-			if 1.5*abs(delta[0]) - abs(delta[1]) > 3:
-				if delta[0] > 0:
-					self.pos.x = hit.rect.right + BLOCK_SIZE / 2 - 1
-				else:
-					self.pos.x = hit.rect.left - BLOCK_SIZE / 2 + 1
-				self.vel.x = 0
+		#wall_hits = pygame.sprite.spritecollide(self, platforms, False)
+		#for hit in wall_hits:
+		#	delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
+		#	if 1.5*abs(delta[0]) - abs(delta[1]) > 3:
+		#		if delta[0] > 0:
+		#			self.pos.x = hit.rect.right + BLOCK_SIZE / 2 - 1
+		#		else:
+		#			self.pos.x = hit.rect.left - BLOCK_SIZE / 2 + 1
+		#		self.vel.x = 0
+		pass
 
 
 
