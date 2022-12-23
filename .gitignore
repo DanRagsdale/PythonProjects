@@ -1,6 +1,7 @@
 .vscode/
 data/
 media/
+venv/
 __pycache__/
 
 ideas.md

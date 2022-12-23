@@ -12,13 +12,15 @@ LAPS = 400
 FEET = 0.3048
 MILES = 1609.344
 
+SIXTEEN = 1600
+
 MARATHONS = 42195
 
 DISTANCES = ["Meters", "Kilometers", "Feet", "Miles", "Laps", "Marathons"]
 DISTANCE_VALUES = [METERS, KILOMETERS, FEET, MILES, LAPS, MARATHONS]
 
-PACES = ["Kilometer", "Mile", "Lap"]
-PACE_VALUES = [KILOMETERS, MILES, LAPS]
+PACES = ["Kilometer", "Mile", "1600m", "Lap"]
+PACE_VALUES = [KILOMETERS, MILES, SIXTEEN, LAPS]
 
 def s_float(s):
 	s = s.strip()
@@ -121,7 +123,7 @@ class PaceCalculator:
 
 			dist = time / pace
 
-			self.dist_var.set(dist / DISTANCE_VALUES[self.dist_cb.current()])
+			self.dist_var.set(round(dist / DISTANCE_VALUES[self.dist_cb.current()], 2))
 		except ValueError:
 			pass
 
@@ -130,7 +132,7 @@ class PaceCalculator:
 			time = s_float(self.hour_var.get()) * 3600 + s_float(self.min_var.get()) * 60 + s_float(self.sec_var.get())
 			dist = s_float(self.dist_var.get()) * DISTANCE_VALUES[self.dist_cb.current()]
 
-			pace = time / dist * PACE_VALUES[self.pace_cb.current()]
+			pace = round(time / dist * PACE_VALUES[self.pace_cb.current()],2)
 
 			self.pmin_var.set(int(pace / 60))
 			self.psec_var.set(round(pace % 60, 2))
