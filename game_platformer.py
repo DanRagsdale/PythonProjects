@@ -15,7 +15,8 @@ HEIGHT = 900
 TICK_RATE = 60
 ANIM_RATE = 5
 
-ACC = 2
+ACC = 0.5
+MAX_SPEED = 10
 FRIC = -0.2
 JUMP_VEL = -20
 GRAVITY = 2
@@ -35,12 +36,8 @@ path, name = os.path.split(module.__file__)
 
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
 
-tex_player = pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "player_idle_00.tga"))
-#tex_player.convert()
-
-
 tex_idle = [
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-00.tga")).convert_alpha(),
+	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-00.png")).convert_alpha(),
 	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-01.png")).convert_alpha(),
 	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-02.png")).convert_alpha(),
 ]
@@ -64,20 +61,18 @@ class Platform(pygame.sprite.Sprite):
 
 		self.texture = tex_dirt 
 
-START_POS = vec(BLOCK_SIZE / 2 , 385)
-
 class Player(pygame.sprite.Sprite):
 	class State:
 		Idle, Running = range(2)
 		Textures = {Idle:tex_idle, Running:tex_run}
 
-	def __init__(self):
+	def __init__(self, start_pos):
 		super().__init__()
 		self.surf = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
 		self.surf.fill((128,64,32))
 		self.rect = self.surf.get_rect()
 
-		self.pos = START_POS
+		self.pos = start_pos
 		self.vel = vec(0,0)
 		self.acc = vec(0,0)
 
@@ -91,7 +86,7 @@ class Player(pygame.sprite.Sprite):
 		self.texture = tex_idle[0]
 
 
-	def move(self):
+	def move(self, game):
 		true_grav = GRAVITY	
 
 		pressed_keys = pygame.key.get_pressed()
@@ -103,16 +98,17 @@ class Player(pygame.sprite.Sprite):
 		if pressed_keys[K_LEFT] and not pressed_keys[K_RIGHT]:
 			self.direction = False
 			self.acc.x = -ACC
-		if pressed_keys[K_RIGHT] and not pressed_keys[K_LEFT]:
+		elif pressed_keys[K_RIGHT] and not pressed_keys[K_LEFT]:
 			self.direction = True
 			self.acc.x = ACC
-
-		self.acc.x += self.vel.x * (FRIC)
+		else:
+			self.acc.x += self.vel.x * (FRIC)
 
 		self.vel += self.acc
+		self.vel.x = max(min(self.vel.x, MAX_SPEED), -MAX_SPEED)
 		
 		# Constrain velocity based on raycasts
-		self.update_distances()
+		self.update_distances(game)
 
 		self.vel.y = max(min(self.vel.y, self.col_distances[3]), -self.col_distances[2])
 		self.vel.x = max(min(self.vel.x, self.col_distances[1]), -self.col_distances[0])
@@ -138,11 +134,11 @@ class Player(pygame.sprite.Sprite):
 			self.texture = pygame.transform.flip(texture_list[self.anim_index], True, False)
 
 
-	def update_distances(self):
+	def update_distances(self, game):
 		#Raycast upward
 		up_dists = [100000]
 		
-		for test_plat in platforms:
+		for test_plat in game.platforms:
 			if self.rect.top >= test_plat.rect.bottom - 2:
 				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
 					up_dists.append(max(self.rect.top - test_plat.rect.bottom, 0))
@@ -154,7 +150,7 @@ class Player(pygame.sprite.Sprite):
 		#Raycast downward
 		down_dists = [100000]
 
-		for test_plat in platforms:
+		for test_plat in game.platforms:
 			if self.rect.bottom <= test_plat.rect.top + 2:
 				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
 					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
@@ -166,7 +162,7 @@ class Player(pygame.sprite.Sprite):
 		#Raycast left
 		left_dists = [100000]
 		
-		for test_plat in platforms:
+		for test_plat in game.platforms:
 			if self.rect.left >= test_plat.rect.right - 2:
 				if test_plat.rect.top < self.rect.top < test_plat.rect.bottom:
 					left_dists.append(max(self.rect.left - test_plat.rect.right, 0))
@@ -180,7 +176,7 @@ class Player(pygame.sprite.Sprite):
 		#Raycast right
 		right_dists = [100000]
 		
-		for test_plat in platforms:
+		for test_plat in game.platforms:
 			if self.rect.right <= test_plat.rect.left + 2:
 				if test_plat.rect.top < self.rect.top < test_plat.rect.bottom:
 					right_dists.append(max(test_plat.rect.left - self.rect.right, 0))
@@ -226,85 +222,104 @@ class Player(pygame.sprite.Sprite):
 		#		self.vel.x = 0
 		pass
 
+class Game():
+	def __init__(self):
+		self.load_level("level_001.png")
+		self.main_loop()
 
-all_sprites = pygame.sprite.Group()
 
-platforms = pygame.sprite.Group()
+	def load_level(self, level_name):
 
-img = Image.open(os.path.join(path, "res", "platformer", "level_002.png"))
-for x in range(img.size[0]):
-	for y in range(img.size[1]):
-		pixel = img.getpixel((x,y))[0:3] #Ignore pixel alpha channel
+		START_POS = vec(0,0)
 
-		if pixel != (0,0,0):
-			if pixel == (0xff,0,0):
-				START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE -2)
+		self.platforms = pygame.sprite.Group()
+
+		img = Image.open(os.path.join(path, "res", "platformer", "maps", level_name))
+		for x in range(img.size[0]):
+			for y in range(img.size[1]):
+				pixel = img.getpixel((x,y))[0:3] #Ignore pixel alpha channel
+
+				if pixel != (0,0,0):
+					if pixel == (0xff,0,0):
+						START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE -2)
+					else:
+						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE)
+						self.platforms.add(plat)
+
+		self.player = Player(START_POS)
+
+		self.game_map = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+		self.background = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+		self.background.fill((100,100,220))
+
+		for entity in self.platforms:
+			self.background.blit(tex_dirt, entity.rect)
+
+		self.window_pos = [0,0]
+
+
+
+
+	def main_loop(self):
+		last_frame = last_physics = last_anim = time.perf_counter()
+		state = 1
+		frame_count = 0
+		running = True
+		while running:
+			current_time = time.perf_counter()
+
+			#events = pygame.event.get()
+
+			# Game Code
+			if state == 0:
+				for event in pygame.event.get():
+					if event.type == QUIT:
+						running = False
 			else:
-				plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE)
-				all_sprites.add(plat)
-				platforms.add(plat)
+				while current_time - last_physics > 1.0 / TICK_RATE:
+					for event in pygame.event.get():
+						if event.type == QUIT:
+							running = False
+						elif event.type == KEYDOWN:
+							if event.key == K_SPACE:
+								self.player.jump()
 
-player = Player()
-all_sprites.add(player)
+					self.player.move(self)
+					self.player.update()
+					self.player.set_on_ground()
 
-game_map = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
-background = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
-background.fill((100,100,220))
+					last_physics += 1.0 / TICK_RATE
+				
+				if current_time - last_anim > 1.0 / ANIM_RATE:
+					self.player.update_anims()
+					last_anim = current_time
 
-for entity in platforms:
-	background.blit(tex_dirt, entity.rect)
+					# Close if player dies
+				if self.player.pos.y > HEIGHT + 1:
+					running = False
 
-window_pos = [0,0]
-
-last_frame = last_physics = last_anim = time.perf_counter()
-
-frame_count = 0
-running = True
-while running:
-	current_time = time.perf_counter()
-
-	# Game Code
-	while current_time - last_physics > 1.0 / TICK_RATE:
-		for event in pygame.event.get():
-			if event.type == QUIT:
-				running = False
-			elif event.type == KEYDOWN:
-				if event.key == K_SPACE:
-					player.jump()
-
-		player.move()
-		player.update()
-		player.set_on_ground()
-
-		last_physics += 1.0 / TICK_RATE
-	
-	if current_time - last_anim > 1.0 / ANIM_RATE:
-		player.update_anims()
-		last_anim = current_time
-
-	# Close if player dies
-	if player.pos.y > HEIGHT + 1:
-		running = False
-
-	# Rendering Code
-	if player.pos.x > (-window_pos[0] + WIDTH * 0.7):
-		window_pos[0] -= abs(player.vel.x)
-	if player.pos.x < (-window_pos[0] + WIDTH * 0.2) and player.pos.x > WIDTH * 0.2:
-		window_pos[0] += abs(player.vel.x)
+			# Rendering Code
+			if self.player.pos.x > (-self.window_pos[0] + WIDTH * 0.7):
+				self.window_pos[0] -= abs(self.player.vel.x)
+			if self.player.pos.x < (-self.window_pos[0] + WIDTH * 0.2) and self.player.pos.x > WIDTH * 0.2:
+				self.window_pos[0] += abs(self.player.vel.x)
 
 
-	game_map.fill((100,100,220))
-	game_map.blit(background, (0,0))
-	game_map.blit(player.texture, player.rect)
-	#game_map.blit(player.surf, player.rect)
+			self.game_map.fill((100,100,220))
+			self.game_map.blit(self.background, (0,0))
+			self.game_map.blit(self.player.texture, self.player.rect)
+			#game_map.blit(player.surf, player.rect)
 
-	window.fill((0,0,0))
-	window.blit(game_map, window_pos)
+			window.fill((0,0,0))
+			window.blit(self.game_map, self.window_pos)
 
-	pygame.display.update()
+			pygame.display.update()
 
-	last_frame = current_time
-	frame_count += 1
+			last_frame = current_time
+			frame_count += 1
 
-pygame.quit()
-sys.exit()
+		pygame.quit()
+		sys.exit()
+
+if __name__ == '__main__':
+	game = Game()
