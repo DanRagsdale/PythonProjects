@@ -35,6 +35,7 @@ module = sys.modules['__main__']
 path, name = os.path.split(module.__file__)
 
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
+tex_block = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_block.png"))
 
 tex_coin = [
 	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-00.png")).convert_alpha(),
@@ -65,13 +66,13 @@ tex_run = [
 
 
 class Platform(pygame.sprite.Sprite):
-	def __init__(self, x, y):
+	def __init__(self, x, y, texture):
 		super().__init__()
 		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
 		self.surf.fill((255,0,0))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
-		self.texture = tex_dirt 
+		self.texture = texture
 
 class Coin(pygame.sprite.Sprite):
 	def __init__(self, x, y):
@@ -284,8 +285,11 @@ class Game():
 					elif pixel == (0xff,0xff,0):
 						coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
 						self.entities.add(coin)
+					elif pixel == (0x88,0x88,0x88):
+						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, tex_block)
+						self.platforms.add(plat)
 					else:
-						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE)
+						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, tex_dirt)
 						self.platforms.add(plat)
 
 		self.player = Player(START_POS)
@@ -296,7 +300,7 @@ class Game():
 		self.background.fill((100,100,220))
 
 		for plat in self.platforms:
-			self.background.blit(tex_dirt, plat.rect)
+			self.background.blit(plat.texture, plat.rect)
 
 		self.window_pos = [0,0]
 
