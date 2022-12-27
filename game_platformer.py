@@ -10,8 +10,8 @@ pygame.init()
 
 vec = pygame.math.Vector2
 
-WIDTH = 1400
-HEIGHT = 900
+SCREEN_WIDTH = 1400
+SCREEN_HEIGHT = 900
 TICK_RATE = 60
 ANIM_RATE = 5
 
@@ -28,7 +28,7 @@ PLAYER_HEIGHT = 60
 
 clock = pygame.time.Clock()
 
-window = pygame.display.set_mode((WIDTH, HEIGHT))
+window = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Game")
 
 module = sys.modules['__main__']
@@ -104,7 +104,6 @@ class Coin(pygame.sprite.Sprite):
 			self.anim_index = 0
 		self.texture = texture_list[self.anim_index]
 
-
 class Player(pygame.sprite.Sprite):
 	class State:
 		Idle, Running = range(2)
@@ -117,6 +116,7 @@ class Player(pygame.sprite.Sprite):
 		self.rect = self.surf.get_rect()
 
 		self.pos = start_pos
+		self.rect.midbottom = self.pos
 		self.vel = vec(0,0)
 		self.acc = vec(0,0)
 
@@ -128,7 +128,6 @@ class Player(pygame.sprite.Sprite):
 		self.anim_index = 0
 
 		self.texture = tex_idle[0]
-
 
 	def move(self, game):
 		true_grav = GRAVITY	
@@ -268,7 +267,10 @@ class Player(pygame.sprite.Sprite):
 
 class Game():
 	def __init__(self):
-		self.load_level("level_001.png")
+		self.map_names = os.listdir(os.path.join(path, "res", "platformer", "maps"))
+		self.map_names.sort()
+		print(self.map_names)
+
 		self.main_loop()
 
 
@@ -315,9 +317,22 @@ class Game():
 
 	def main_loop(self):
 		last_frame = last_physics = last_anim = time.perf_counter()
-		state = 1
+		state = 0
 		frame_count = 0
 		running = True
+
+		self.load_level(self.map_names[0])
+
+		self.gui = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+		self.gui.set_colorkey((255,0,255))
+
+		self.scroll_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+		self.scroll_surf.set_colorkey((255,0,255))
+
+		start_buttons = []
+		for i in range(0, len(self.map_names)):
+			button = pygame.Rect(0,SCREEN_HEIGHT / 3 + i * 100,160,80)
+			start_buttons.append(button)
 
 		while running:
 			current_time = time.perf_counter()
@@ -326,11 +341,21 @@ class Game():
 				print("Stuttering")
 
 
-			# Game Code
+			mouse_pos = pygame.mouse.get_pos()
+
+			# Update Game
 			if state == 0:
 				for event in pygame.event.get():
 					if event.type == QUIT:
 						running = False
+					elif event.type == MOUSEBUTTONDOWN and event.button == 1:
+						for i, button in enumerate(start_buttons):
+							if button.collidepoint(mouse_pos[0], mouse_pos[1]):
+								self.load_level(self.map_names[i])
+								state = 1
+					elif event.type == MOUSEWHEEL:
+						for button in start_buttons:
+							button.centery += 10 * event.y
 			else:
 				while current_time - last_physics > 1.0 / TICK_RATE:
 					for event in pygame.event.get():
@@ -347,41 +372,56 @@ class Game():
 
 					last_physics += 1.0 / TICK_RATE
 				
-				if current_time - last_anim > 1.0 / ANIM_RATE:
-					for entity in self.entities:
-						entity.update_anims(self)
-					last_anim = current_time
-
 					# Close if player dies
-				if self.player.pos.y > HEIGHT + 1:
-					running = False
+				if self.player.pos.y > SCREEN_HEIGHT + PLAYER_HEIGHT + 1:
+					state = 0
+			
+			#Update Animations
+			if current_time - last_anim > 1.0 / ANIM_RATE:
+				for entity in self.entities:
+					entity.update_anims(self)
+				last_anim = current_time
 
 			# Rendering Code
-			if self.player.pos.x > (-self.window_pos[0] + WIDTH * 0.7):
+			if self.player.pos.x > (-self.window_pos[0] + SCREEN_WIDTH * 0.7):
 				self.window_pos[0] -= abs(self.player.vel.x)
-			if self.player.pos.x < (-self.window_pos[0] + WIDTH * 0.2) and self.player.pos.x > WIDTH * 0.2:
+			if self.player.pos.x < (-self.window_pos[0] + SCREEN_WIDTH * 0.2) and self.player.pos.x > SCREEN_WIDTH * 0.2:
 				self.window_pos[0] += abs(self.player.vel.x)
+	
+			
+			self.gui.fill((255,0,255))
+			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
+			pygame.Surface.blit(self.gui,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
+
+			self.scroll_surf.fill((255,0,255))
+
+			if state == 0:
+				# Blit menu GUI
+				for button in start_buttons:
+					pygame.Surface.fill(self.scroll_surf, (128,128,128), button)
+				self.scroll_surf.fill((255,0,255),(0,0, SCREEN_WIDTH, SCREEN_HEIGHT / 3))
+
+				pygame.Surface.blit(self.gui, self.scroll_surf, (0,0))
 
 
 			self.game_map.fill((100,100,220))
 			self.game_map.blit(self.background, (0,0))
-
+	
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
-			#game_map.blit(player.surf, player.rect)
-		
+
+
+
 			window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
-			
-			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
-			pygame.Surface.blit(window,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
-
+			window.blit(self.gui, (0,0))
 
 			pygame.display.update()
 
 			last_frame = current_time
 			frame_count += 1
 
+		pygame.display.quit()
 		pygame.quit()
 		sys.exit()
 
