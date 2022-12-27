@@ -34,6 +34,10 @@ pygame.display.set_caption("Game")
 module = sys.modules['__main__']
 path, name = os.path.split(module.__file__)
 
+
+pygame.display.set_caption("Platformer Creator")
+font = pygame.font.SysFont("Arial Black", 30)
+
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
 tex_block = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_block.png"))
 
@@ -89,6 +93,7 @@ class Coin(pygame.sprite.Sprite):
 		collisions = pygame.sprite.spritecollide(self, game.entities, False)
 		for col in collisions:
 			if isinstance(col, Player):
+				game.score += 100
 				self.kill()
 
 	def update_anims(self, game):
@@ -303,6 +308,7 @@ class Game():
 			self.background.blit(plat.texture, plat.rect)
 
 		self.window_pos = [0,0]
+		self.score = 0
 
 
 
@@ -363,9 +369,13 @@ class Game():
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
 			#game_map.blit(player.surf, player.rect)
-
+		
 			window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
+			
+			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
+			pygame.Surface.blit(window,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
+
 
 			pygame.display.update()
 
