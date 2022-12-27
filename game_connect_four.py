@@ -299,10 +299,10 @@ while running:
 					state = 1
 					reset_game()
 			if event.type == MOUSEBUTTONDOWN:
-				if button_sp.left < mouse_pos[0] < button_sp.right and button_sp.top < mouse_pos[1] < button_sp.bottom:
+				if button_sp.collidepoint(mouse_pos[0], mouse_pos[1]):
 					state = 1
 					reset_game()
-				if button_mp.left < mouse_pos[0] < button_mp.right and button_mp.top < mouse_pos[1] < button_mp.bottom:
+				if button_mp.collidepoint(mouse_pos[0], mouse_pos[1]):
 					state = 2
 					reset_game()
 	elif state == 1:
@@ -360,12 +360,12 @@ while running:
 		mp_text = font.render("2 Player", True, (255,255,255),(0,0,0))
 		mp_coord = sp_text.get_rect(center=button_mp.center)
 
-		if button_sp.left < mouse_pos[0] < button_sp.right and button_sp.top < mouse_pos[1] < button_sp.bottom:
+		if button_sp.collidepoint(mouse_pos[0], mouse_pos[1]):
 			surf_board.fill((180,0,0), button_sp)
 		else:
 			surf_board.fill((255,0,0), button_sp)
 
-		if button_mp.left < mouse_pos[0] < button_mp.right and button_mp.top < mouse_pos[1] < button_mp.bottom:
+		if button_mp.collidepoint(mouse_pos[0], mouse_pos[1]):
 			surf_board.fill((180,0,0), button_mp)
 		else:
 			surf_board.fill((255,0,0), button_mp)
