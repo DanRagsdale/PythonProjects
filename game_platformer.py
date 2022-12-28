@@ -21,7 +21,7 @@ FRIC = -0.2
 JUMP_VEL = -20
 GRAVITY = 2
 
-BLOCK_SIZE = 50
+BLOCK_SIZE = 48
 
 PLAYER_WIDTH = 40
 PLAYER_HEIGHT = 60
@@ -39,6 +39,7 @@ pygame.display.set_caption("Platformer Creator")
 font = pygame.font.SysFont("Arial Black", 30)
 
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
+tex_grass = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass.png"))
 tex_block = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_block.png"))
 
 tex_coin = [
@@ -265,6 +266,29 @@ class Player(pygame.sprite.Sprite):
 		self.on_ground -= 1
 			
 
+Block_Dict = {}
+
+class Block:
+	def __init__(self, id, tex, is_solid):
+		self.id = id	
+		self.texture = tex
+		self.is_solid = is_solid
+
+class Blocks:
+
+	def add_block(id, tex, is_solid):
+		b = Block(id, tex, is_solid)
+		Block_Dict[id] = b
+		return b
+
+	Spawn = add_block((0xff,0x00,0x00), None, False)
+	Coin = add_block((0xff,0xff,0x00), None, False)
+	Brick = add_block((0x88,0x88,0x88), tex_block, True)
+	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
+	Dirt = add_block((0xff,0x88,0x00), tex_dirt, True)
+
+
+
 class Game():
 	def __init__(self):
 		self.map_names = os.listdir(os.path.join(path, "res", "platformer", "maps"))
@@ -272,7 +296,6 @@ class Game():
 		print(self.map_names)
 
 		self.main_loop()
-
 
 	def load_level(self, level_name):
 
@@ -282,22 +305,21 @@ class Game():
 		self.entities = pygame.sprite.Group()
 
 		img = Image.open(os.path.join(path, "res", "platformer", "maps", level_name))
-		for x in range(img.size[0]):
-			for y in range(img.size[1]):
-				pixel = img.getpixel((x,y))[0:3] #Ignore pixel alpha channel
+		for x,y in [(x,y) for x in range(img.size[0]) for y in range(img.size[1])]:
+			pixel = img.getpixel((x,y))[0:3] #Ignore pixel alpha channel
 
-				if pixel != (0,0,0):
-					if pixel == (0xff,0,0):
-						START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE -2)
-					elif pixel == (0xff,0xff,0):
-						coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
-						self.entities.add(coin)
-					elif pixel == (0x88,0x88,0x88):
-						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, tex_block)
-						self.platforms.add(plat)
+			if pixel != (0,0,0):
+				if pixel == Blocks.Spawn.id:
+					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE -2)
+				elif pixel == Blocks.Coin.id:
+					coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
+					self.entities.add(coin)
+				else:
+					if pixel in Block_Dict:
+						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, Block_Dict[pixel].texture)
 					else:
 						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, tex_dirt)
-						self.platforms.add(plat)
+					self.platforms.add(plat)
 
 		self.player = Player(START_POS)
 		self.entities.add(self.player)
