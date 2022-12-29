@@ -39,8 +39,13 @@ pygame.display.set_caption("Platformer Creator")
 font = pygame.font.SysFont("Arial Black", 30)
 
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
+tex_dirt_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_l.png"))
+tex_dirt_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_r.png"))
 tex_grass = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass.png"))
-tex_block = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_block.png"))
+tex_grass_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass_l.png"))
+tex_grass_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass_r.png"))
+tex_brick = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_brick.png"))
+tex_stone = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_stone.png"))
 
 tex_coin = [
 	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-00.png")).convert_alpha(),
@@ -275,7 +280,6 @@ class Block:
 		self.is_solid = is_solid
 
 class Blocks:
-
 	def add_block(id, tex, is_solid):
 		b = Block(id, tex, is_solid)
 		Block_Dict[id] = b
@@ -283,9 +287,10 @@ class Blocks:
 
 	Spawn = add_block((0xff,0x00,0x00), None, False)
 	Coin = add_block((0xff,0xff,0x00), None, False)
-	Brick = add_block((0x88,0x88,0x88), tex_block, True)
-	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
 	Dirt = add_block((0xff,0x88,0x00), tex_dirt, True)
+	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
+	Brick = add_block((0x88,0x88,0x88), tex_brick, True)
+	Stone = add_block((0x20,0x20,0x20), tex_stone, True)
 
 
 
@@ -310,10 +315,53 @@ class Game():
 
 			if pixel != (0,0,0):
 				if pixel == Blocks.Spawn.id:
-					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE -2)
+					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE - 2)
 				elif pixel == Blocks.Coin.id:
 					coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
 					self.entities.add(coin)
+				elif pixel == Blocks.Dirt.id:
+					dirt_textures = [tex_dirt_l, tex_dirt_r, tex_dirt]
+
+					left = None
+					try:
+						left = img.getpixel((x-1,y))[0:3]
+					except:
+						pass
+					if left in Block_Dict and (Block_Dict[left] == Blocks.Dirt or Block_Dict[left] == Blocks.Grass):
+						dirt_textures.remove(tex_dirt_l)
+
+					right = None	
+					try:
+						right = img.getpixel((x+1,y))[0:3]
+					except:
+						pass
+					if right in Block_Dict and (Block_Dict[right] == Blocks.Dirt or Block_Dict[right] == Blocks.Grass):
+						dirt_textures.remove(tex_dirt_r)
+
+					plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, dirt_textures[0])
+					self.platforms.add(plat)
+				elif pixel == Blocks.Grass.id:
+					#Grass L, Grass M, Grass R
+					grass_textures = [tex_grass_l, tex_grass_r, tex_grass]
+
+					left = None	
+					try:
+						left = img.getpixel((x-1,y))[0:3]
+					except:
+						pass
+					if left in Block_Dict and Block_Dict[left].is_solid:
+						grass_textures.remove(tex_grass_l)
+
+					right = None
+					try:	
+						right = img.getpixel((x+1,y))[0:3]
+					except:
+						pass
+					if right in Block_Dict and Block_Dict[right].is_solid:
+						grass_textures.remove(tex_grass_r)
+
+					plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, grass_textures[0])
+					self.platforms.add(plat)
 				else:
 					if pixel in Block_Dict:
 						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, Block_Dict[pixel].texture)
