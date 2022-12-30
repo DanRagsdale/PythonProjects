@@ -46,6 +46,9 @@ tex_grass_l = pygame.image.load(os.path.join(path, "res", "platformer", "texture
 tex_grass_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass_r.png"))
 tex_brick = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_brick.png"))
 tex_stone = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_stone.png"))
+tex_cobble = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble.png"))
+tex_cobble_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_l.png"))
+tex_cobble_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_r.png"))
 
 tex_coin = [
 	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-00.png")).convert_alpha(),
@@ -291,6 +294,7 @@ class Blocks:
 	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
 	Brick = add_block((0x88,0x88,0x88), tex_brick, True)
 	Stone = add_block((0x20,0x20,0x20), tex_stone, True)
+	Cobble = add_block((0x10,0x10,0x10), tex_cobble, True)
 
 
 
@@ -362,6 +366,27 @@ class Game():
 
 					plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, grass_textures[0])
 					self.platforms.add(plat)
+				elif pixel == Blocks.Cobble.id:
+					cobble_textures = [tex_cobble_l, tex_cobble_r, tex_cobble]
+					
+					left = None	
+					try:
+						left = img.getpixel((x-1,y))[0:3]
+					except:
+						pass
+					if left in Block_Dict and Block_Dict[left].is_solid:
+						cobble_textures.remove(tex_cobble_l)
+				
+					right = None
+					try:	
+						right = img.getpixel((x+1,y))[0:3]
+					except:
+						pass
+					if right in Block_Dict and Block_Dict[right].is_solid:
+						cobble_textures.remove(tex_cobble_r)
+
+					plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, cobble_textures[0])
+					self.platforms.add(plat)
 				else:
 					if pixel in Block_Dict:
 						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, Block_Dict[pixel].texture)
@@ -386,7 +411,7 @@ class Game():
 
 
 	def main_loop(self):
-		last_frame = last_physics = last_anim = time.perf_counter()
+		last_frame = last_anim = time.perf_counter()
 		state = 0
 		frame_count = 0
 		running = True
@@ -407,7 +432,7 @@ class Game():
 		while running:
 			current_time = time.perf_counter()
 
-			if (current_time - last_frame) > 1.0 / 60:
+			if (current_time - last_frame) > 1.0 / 57:
 				print("Stuttering")
 
 
@@ -427,21 +452,18 @@ class Game():
 						for button in start_buttons:
 							button.centery += 10 * event.y
 			else:
-				while current_time - last_physics > 1.0 / TICK_RATE:
-					for event in pygame.event.get():
-						if event.type == QUIT:
-							running = False
-						elif event.type == KEYDOWN:
-							if event.key == K_SPACE:
-								self.player.jump()
+				for event in pygame.event.get():
+					if event.type == QUIT:
+						running = False
+					elif event.type == KEYDOWN:
+						if event.key == K_SPACE:
+							self.player.jump()
 
-					self.player.move(self)
+				self.player.move(self)
 
-					for entity in self.entities:
-						entity.update(self)
+				for entity in self.entities:
+					entity.update(self)
 
-					last_physics += 1.0 / TICK_RATE
-				
 					# Close if player dies
 				if self.player.pos.y > SCREEN_HEIGHT + PLAYER_HEIGHT + 1:
 					state = 0
@@ -490,6 +512,7 @@ class Game():
 
 			last_frame = current_time
 			frame_count += 1
+			clock.tick(60)
 
 		pygame.display.quit()
 		pygame.quit()
