@@ -52,7 +52,7 @@ class spritesheet(object):
 		self.size_y = size_y
     
 	def image_from_index(self, x, y, colorkey=None):
-		pass
+		return self.image_at((x * self.size_x, y * self.size_y, self.size_x, self.size_y), colorkey)
 	
 	# Load a specific image from a specific rectangle
 	def image_at(self, rectangle, colorkey = None):
@@ -83,17 +83,22 @@ tex_run = sheet_player.load_strip(1, 6, (255,0,255))
 sheet_coin = spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_coin.png"), BLOCK_SIZE, BLOCK_SIZE)
 tex_coin = sheet_coin.load_strip(0, 8, (255,0,255))
 
-tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
-tex_dirt_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_l.png"))
-tex_dirt_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_r.png"))
-tex_grass = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass.png"))
-tex_grass_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass_l.png"))
-tex_grass_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_grass_r.png"))
-tex_brick = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_brick.png"))
-tex_stone = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_stone.png"))
-tex_cobble = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble.png"))
-tex_cobble_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_l.png"))
-tex_cobble_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_r.png"))
+sheet_textures = spritesheet(os.path.join(path, "res", "platformer", "textures", "sheet_textures.png"), BLOCK_SIZE, BLOCK_SIZE)
+
+tex_stone = sheet_textures.image_from_index(0, 0, (255,0,255))
+tex_brick = sheet_textures.image_from_index(1, 0, (255,0,255))
+
+tex_dirt = sheet_textures.image_from_index(0, 1, (255,0,255))
+tex_dirt_l = sheet_textures.image_from_index(1, 1, (255,0,255))
+tex_dirt_r = sheet_textures.image_from_index(2, 1, (255,0,255))
+
+tex_grass = sheet_textures.image_from_index(0, 2, (255,0,255))
+tex_grass_l = sheet_textures.image_from_index(1, 2, (255,0,255))
+tex_grass_r = sheet_textures.image_from_index(2, 2, (255,0,255))
+
+tex_cobble = sheet_textures.image_from_index(0, 3, (255,0,255))
+tex_cobble_l = sheet_textures.image_from_index(1, 3, (255,0,255))
+tex_cobble_r = sheet_textures.image_from_index(2, 3, (255,0,255))
 
 class Platform(pygame.sprite.Sprite):
 	def __init__(self, x, y, texture):
