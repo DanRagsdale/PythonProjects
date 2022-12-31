@@ -83,6 +83,9 @@ tex_run = sheet_player.load_strip(1, 6, (255,0,255))
 sheet_coin = spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_coin.png"), BLOCK_SIZE, BLOCK_SIZE)
 tex_coin = sheet_coin.load_strip(0, 8, (255,0,255))
 
+sheet_crab = spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_crab.png"), BLOCK_SIZE, BLOCK_SIZE)
+tex_crab = sheet_crab.load_strip(0, 2, (255,0,255))
+
 sheet_textures = spritesheet(os.path.join(path, "res", "platformer", "textures", "sheet_textures.png"), BLOCK_SIZE, BLOCK_SIZE)
 
 tex_stone = sheet_textures.image_from_index(0, 0, (255,0,255))
@@ -135,15 +138,29 @@ class Coin(pygame.sprite.Sprite):
 			self.anim_index = 0
 		self.texture = texture_list[self.anim_index]
 
-class Bomb(pygame.sprite.Sprite):
+class Crab(pygame.sprite.Sprite):
 	def __init__(self, x, y):
 		super().__init__()
+
+		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
+		self.surf.fill((255,255,0))
+		self.rect = self.surf.get_rect(topleft=(x,y))
+
+		self.texture = tex_crab[0]
+		self.anim_index = 0
+
+		self.dir = 1
 
 	def update(self, game):
 		pass
 
 	def update_anims(self, game):
-		pass
+		self.anim_index += 1
+		texture_list = tex_crab
+
+		if self.anim_index >= len(texture_list):
+			self.anim_index = 0
+		self.texture = texture_list[self.anim_index]
 
 class Player(pygame.sprite.Sprite):
 	class State:
@@ -212,27 +229,15 @@ class Player(pygame.sprite.Sprite):
 
 	def update(self, game):
 		self.set_on_ground()
+		
+		collisions = pygame.sprite.spritecollide(self, game.entities, False)
+		for col in collisions:
+			if isinstance(col, Crab):
+				if self.rect.bottom < col.rect.centery:
+					game.score += 1000
+					self.vel.y = JUMP_VEL
+					col.kill()
 
-		#ground_hits = pygame.sprite.spritecollide(self, platforms, False)
-		#for hit in ground_hits:
-		#	delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
-		#	if abs(delta[1]) - 1.5*abs(delta[0]) > 2:
-		#		if delta [1] < 0 and self.vel.y > 0:
-		#			self.pos.y = hit.rect.top + 1
-		#			self.vel.y = 0
-		#		elif delta[1] > 0:
-		#			self.pos.y = hit.rect.bottom + 2*BLOCK_SIZE
-		#			self.vel.y = 0
-
-		#wall_hits = pygame.sprite.spritecollide(self, platforms, False)
-		#for hit in wall_hits:
-		#	delta = (self.rect.center[0] - hit.rect.center[0], self.rect.center[1] - hit.rect.center[1])
-		#	if 1.5*abs(delta[0]) - abs(delta[1]) > 3:
-		#		if delta[0] > 0:
-		#			self.pos.x = hit.rect.right + BLOCK_SIZE / 2 - 1
-		#		else:
-		#			self.pos.x = hit.rect.left - BLOCK_SIZE / 2 + 1
-		#		self.vel.x = 0
 
 	def update_anims(self, game):
 		self.anim_index += 1
@@ -322,6 +327,8 @@ class Blocks:
 
 	Spawn = add_block((0xff,0x00,0x00), None, False)
 	Coin = add_block((0xff,0xff,0x00), None, False)
+	Crab = add_block((0xff,0x80,0x80), None, False)
+
 	Dirt = add_block((0xff,0x88,0x00), tex_dirt, True)
 	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
 	Brick = add_block((0x88,0x88,0x88), tex_brick, True)
@@ -355,6 +362,9 @@ class Game():
 				elif pixel == Blocks.Coin.id:
 					coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
 					self.entities.add(coin)
+				elif pixel == Blocks.Crab.id:
+					crab = Crab(x * BLOCK_SIZE, y * BLOCK_SIZE)
+					self.entities.add(crab)
 				elif pixel == Blocks.Dirt.id:
 					dirt_textures = [tex_dirt_l, tex_dirt_r, tex_dirt]
 
