@@ -10,8 +10,10 @@ pygame.init()
 
 vec = pygame.math.Vector2
 
+BLOCK_SIZE = 48
+
 SCREEN_WIDTH = 1400
-SCREEN_HEIGHT = 900
+SCREEN_HEIGHT = 18 * BLOCK_SIZE
 TICK_RATE = 60
 ANIM_RATE = 5
 
@@ -20,8 +22,6 @@ MAX_SPEED = 10
 FRIC = -0.2
 JUMP_VEL = -20
 GRAVITY = 2
-
-BLOCK_SIZE = 48
 
 PLAYER_WIDTH = 40
 PLAYER_HEIGHT = 60
@@ -38,6 +38,51 @@ path, name = os.path.split(module.__file__)
 pygame.display.set_caption("Platformer Creator")
 font = pygame.font.SysFont("Arial Black", 30)
 
+
+# This class handles sprite sheets
+# This was taken from www.scriptefun.com/transcript-2-using
+# sprite-sheets-and-drawing-the-background
+# I've added some code to fail if the file wasn't found..
+# Note: When calling images_at the rect is the format:
+# (x, y, x + offset, y + offset)
+class spritesheet(object):
+	def __init__(self, filename, size_x, size_y):
+		self.sheet = pygame.image.load(filename).convert()
+		self.size_x = size_x
+		self.size_y = size_y
+    
+	def image_from_index(self, x, y, colorkey=None):
+		pass
+	
+	# Load a specific image from a specific rectangle
+	def image_at(self, rectangle, colorkey = None):
+		"Loads image from x,y,x+offset,y+offset"
+		rect = pygame.Rect(rectangle)
+		image = pygame.Surface(rect.size).convert()
+		image.blit(self.sheet, (0, 0), rect)
+		if colorkey is not None:
+			if colorkey is -1:
+				colorkey = image.get_at((0,0))
+			image.set_colorkey(colorkey, pygame.RLEACCEL)
+		return image
+
+    # Load a whole bunch of images and return them as a list
+	def images_at(self, rects, colorkey = None):
+		"Loads multiple images, supply a list of coordinates" 
+		return [self.image_at(rect, colorkey) for rect in rects]
+	# Load a whole strip of images
+	def load_strip(self, y, image_count, colorkey = None):
+		"Loads a strip of images and returns them as a list"
+		tups = [(x * self.size_x, y * self.size_y, self.size_x, self.size_y) for x in range(image_count)]
+		return self.images_at(tups, colorkey)
+
+sheet_player = spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_player.png"), PLAYER_WIDTH, PLAYER_HEIGHT)
+tex_idle = sheet_player.load_strip(0, 3, (255,0,255))
+tex_run = sheet_player.load_strip(1, 6, (255,0,255))
+
+sheet_coin = spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_coin.png"), BLOCK_SIZE, BLOCK_SIZE)
+tex_coin = sheet_coin.load_strip(0, 8, (255,0,255))
+
 tex_dirt = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt.png"))
 tex_dirt_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_l.png"))
 tex_dirt_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_dirt_r.png"))
@@ -49,34 +94,6 @@ tex_stone = pygame.image.load(os.path.join(path, "res", "platformer", "textures"
 tex_cobble = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble.png"))
 tex_cobble_l = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_l.png"))
 tex_cobble_r = pygame.image.load(os.path.join(path, "res", "platformer", "textures", "tex_cobble_r.png"))
-
-tex_coin = [
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-00.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-01.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-02.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-03.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-04.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-05.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-06.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "coin-07.png")).convert_alpha(),
-]
-
-tex_idle = [
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-00.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-01.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-idle-02.png")).convert_alpha(),
-]
-
-tex_run = [
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-00.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-01.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-02.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-03.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-04.png")).convert_alpha(),
-	pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "adventurer-run-05.png")).convert_alpha(),
-]
-
-
 
 class Platform(pygame.sprite.Sprite):
 	def __init__(self, x, y, texture):
@@ -112,6 +129,16 @@ class Coin(pygame.sprite.Sprite):
 		if self.anim_index >= len(texture_list):
 			self.anim_index = 0
 		self.texture = texture_list[self.anim_index]
+
+class Bomb(pygame.sprite.Sprite):
+	def __init__(self, x, y):
+		super().__init__()
+
+	def update(self, game):
+		pass
+
+	def update_anims(self, game):
+		pass
 
 class Player(pygame.sprite.Sprite):
 	class State:
@@ -398,7 +425,9 @@ class Game():
 		self.entities.add(self.player)
 
 		self.game_map = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+		self.game_map.set_colorkey((255,0,255))
 		self.background = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
+		self.background.set_colorkey((255,0,255))
 		self.background.fill((100,100,220))
 
 		for plat in self.platforms:
@@ -407,16 +436,14 @@ class Game():
 		self.window_pos = [0,0]
 		self.score = 0
 
-
-
-
 	def main_loop(self):
 		last_frame = last_anim = time.perf_counter()
+		current_level = 0
 		state = 0
 		frame_count = 0
 		running = True
 
-		self.load_level(self.map_names[0])
+		self.load_level(self.map_names[current_level])
 
 		self.gui = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 		self.gui.set_colorkey((255,0,255))
@@ -447,10 +474,15 @@ class Game():
 						for i, button in enumerate(start_buttons):
 							if button.collidepoint(mouse_pos[0], mouse_pos[1]):
 								self.load_level(self.map_names[i])
+								current_level = i
 								state = 1
 					elif event.type == MOUSEWHEEL:
 						for button in start_buttons:
 							button.centery += 10 * event.y
+					elif event.type == KEYDOWN:
+						if event.key == K_SPACE:
+							self.load_level(self.map_names[current_level])
+							state = 1
 			else:
 				for event in pygame.event.get():
 					if event.type == QUIT:
@@ -464,7 +496,6 @@ class Game():
 				for entity in self.entities:
 					entity.update(self)
 
-					# Close if player dies
 				if self.player.pos.y > SCREEN_HEIGHT + PLAYER_HEIGHT + 1:
 					state = 0
 			
