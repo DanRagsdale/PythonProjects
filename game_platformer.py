@@ -152,7 +152,17 @@ class Crab(pygame.sprite.Sprite):
 		self.dir = 1
 
 	def update(self, game):
-		pass
+		grid_x = int(self.rect.centerx / BLOCK_SIZE)
+		grid_y = int(self.rect.centery / BLOCK_SIZE)
+
+		test_x = int(self.rect.centerx / BLOCK_SIZE + self.dir * 0.5)
+
+		if (grid_y < len(game.solids_map[0]) - 1 and game.solids_map[grid_x][grid_y+1]==0) or (0 <= test_x < len(game.solids_map) and game.solids_map[test_x][grid_y]):
+
+			self.dir *= -1
+
+		self.rect.centerx += self.dir
+
 
 	def update_anims(self, game):
 		self.anim_index += 1
@@ -353,10 +363,16 @@ class Game():
 		self.entities = pygame.sprite.Group()
 
 		img = Image.open(os.path.join(path, "res", "platformer", "maps", level_name))
+
+		self.solids_map = [[0]*img.size[1] for i in range(img.size[0])]
+
 		for x,y in [(x,y) for x in range(img.size[0]) for y in range(img.size[1])]:
 			pixel = img.getpixel((x,y))[0:3] #Ignore pixel alpha channel
 
 			if pixel != (0,0,0):
+				if pixel in Block_Dict and Block_Dict[pixel].is_solid:
+					self.solids_map[x][y] = 1
+				
 				if pixel == Blocks.Spawn.id:
 					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE - 2)
 				elif pixel == Blocks.Coin.id:
