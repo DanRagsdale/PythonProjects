@@ -3,6 +3,7 @@ import pygame
 from pygame.locals import *
 import random
 import time
+import math
 
 from PIL import Image
 
@@ -42,9 +43,6 @@ font = pygame.font.SysFont("Arial Black", 30)
 # This class handles sprite sheets
 # This was taken from www.scriptefun.com/transcript-2-using
 # sprite-sheets-and-drawing-the-background
-# I've added some code to fail if the file wasn't found..
-# Note: When calling images_at the rect is the format:
-# (x, y, x + offset, y + offset)
 class spritesheet(object):
 	def __init__(self, filename, size_x, size_y):
 		self.sheet = pygame.image.load(filename).convert()
@@ -158,7 +156,6 @@ class Crab(pygame.sprite.Sprite):
 		test_x = int(self.rect.centerx / BLOCK_SIZE + self.dir * 0.5)
 
 		if (grid_y < len(game.solids_map[0]) - 1 and game.solids_map[grid_x][grid_y+1]==0) or (0 <= test_x < len(game.solids_map) and game.solids_map[test_x][grid_y]):
-
 			self.dir *= -1
 
 		self.rect.centerx += self.dir
@@ -172,10 +169,79 @@ class Crab(pygame.sprite.Sprite):
 			self.anim_index = 0
 		self.texture = texture_list[self.anim_index]
 
+# Returns the intersection point (x, y)
+# Returns () if the lines do not intersect
+# Lines are inputed in 2-point form
+# ray = (x1, y1, x2-x1, y2-y1)
+# line = (x3, y3, x4, y4)
+def check_ray_line_collision(ray, line):
+	x1, y1 = ray[0:2]
+	x2 = x1 + ray[2]
+	y2 = y1 + ray[3]
+
+	x3, y3, x4, y4 = line
+
+	Denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
+	if Denom == 0:
+		return ()
+
+	Nt = (x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)
+	t = Nt / Denom
+	if t < 0:
+		return ()
+
+	Nx = (x1*y2-y1*x2)*(x3-x4) - (x1-x2)*(x3*y4-y3*x4)
+	Ny = (x1*y2-y1*x2)*(y3-y4) - (y1-y2)*(x3*y4-y3*x4)
+
+	return (Nx/ Denom, Ny / Denom)
+
+def distance(a,b):
+	return math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2)
+
+def check_point_on_segment(point, segment):
+	return -0.01 < distance(point,segment[0:2]) + distance(point,segment[2:4]) - distance(segment[0:2],segment[2:4]) < 0.01
+
+# Ray has the form (x, y, x_magnitue, y_magnitude)
+# Rect is a pygame Rect
+# Return distance between ray start point and a rectange.
+# Return -1 if there is no collision
+def check_ray_rect_collision(ray, rect):
+	collisions = []
+
+	#line_ray = (ray[0], ray[1], ray[0]+ray[2], ray[1]+ray[3])
+	line_left = rect.topleft + rect.bottomleft
+	col_l = check_ray_line_collision(ray, line_left)
+	if col_l and check_point_on_segment(col_l, line_left):
+		collisions.append(col_l)
+
+	line_right = rect.topright + rect.bottomright
+	col_r = check_ray_line_collision(ray, line_right)
+	if col_r and check_point_on_segment(col_r, line_right):
+		collisions.append(col_r)
+
+	line_top = rect.topleft + rect.topright
+	col_t = check_ray_line_collision(ray, line_top)
+	if col_t and check_point_on_segment(col_t, line_top):
+		collisions.append(col_t)
+
+	line_bottom = rect.bottomleft + rect.bottomright
+	col_b = check_ray_line_collision(ray, line_bottom)
+	if col_b and check_point_on_segment(col_b, line_bottom):
+		collisions.append(col_b)
+
+	if collisions:
+		dists = [distance(ray[0:2], p) for p in collisions]
+		return min(dists)
+	else:
+		return -1
+
+
 class Player(pygame.sprite.Sprite):
 	class State:
 		Idle, Running = range(2)
 		Textures = {Idle:tex_idle, Running:tex_run}
+
+		print(check_ray_rect_collision((2,-1,1,0), pygame.Rect(1,0,2,2)))
 
 	def __init__(self, start_pos):
 		super().__init__()
@@ -248,7 +314,6 @@ class Player(pygame.sprite.Sprite):
 					self.vel.y = JUMP_VEL
 					col.kill()
 
-
 	def update_anims(self, game):
 		self.anim_index += 1
 		texture_list = Player.State.Textures[self.current_state]
@@ -260,30 +325,44 @@ class Player(pygame.sprite.Sprite):
 		else:
 			self.texture = pygame.transform.flip(texture_list[self.anim_index], True, False)
 
+
+
 	def update_distances(self, game):
+		grid_x = int(self.rect.centerx / BLOCK_SIZE)
+		grid_y = int(self.rect.centery / BLOCK_SIZE)
+
 		#Raycast upward
 		up_dists = [100000]
-		
-		for test_plat in game.platforms:
-			if self.rect.top >= test_plat.rect.bottom - 2:
-				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
-					up_dists.append(max(self.rect.top - test_plat.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.centerx < test_plat.rect.right:
-					up_dists.append(max(self.rect.top - test_plat.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.right < test_plat.rect.right:
-					up_dists.append(max(self.rect.top - test_plat.rect.bottom, 0))
+		for x,y in [(x,y) for x in range(grid_x-1,grid_x+2) for y in range(grid_y-3,grid_y+1)]:
+			if not (0 <= x < len(game.solids_map)) or not (0 <= y < len(game.solids_map[0])):
+				continue
+			if game.solids_map[x][y] == 0:
+				continue
+			test_rect = pygame.Rect((x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+			if self.rect.top >= test_rect.bottom - 2:
+				if test_rect.left < self.rect.left < test_rect.right:
+					up_dists.append(max(self.rect.top - test_rect.bottom, 0))
+				if test_rect.left < self.rect.centerx < test_rect.right:
+					up_dists.append(max(self.rect.top - test_rect.bottom, 0))
+				if test_rect.left < self.rect.right < test_rect.right:
+					up_dists.append(max(self.rect.top - test_rect.bottom, 0))
 
 		#Raycast downward
 		down_dists = [100000]
 
-		for test_plat in game.platforms:
-			if self.rect.bottom <= test_plat.rect.top + 2:
-				if test_plat.rect.left < self.rect.left < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.centerx < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
-				if test_plat.rect.left < self.rect.right < test_plat.rect.right:
-					down_dists.append(max(test_plat.rect.top - self.rect.bottom, 0))
+		for x,y in [(x,y) for x in range(grid_x-1,grid_x+2) for y in range(grid_y-1,grid_y+4)]:
+			if not (0 <= x < len(game.solids_map)) or not (0 <= y < len(game.solids_map[0])):
+				continue
+			if game.solids_map[x][y] == 0:
+				continue
+			test_rect = pygame.Rect((x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+			if self.rect.bottom <= test_rect.top + 2:
+				if test_rect.left < self.rect.left < test_rect.right:
+					down_dists.append(max(test_rect.top - self.rect.bottom, 0))
+				if test_rect.left < self.rect.centerx < test_rect.right:
+					down_dists.append(max(test_rect.top - self.rect.bottom, 0))
+				if test_rect.left < self.rect.right < test_rect.right:
+					down_dists.append(max(test_rect.top - self.rect.bottom, 0))
 
 		#Raycast left
 		left_dists = [100000]
@@ -313,6 +392,7 @@ class Player(pygame.sprite.Sprite):
 
 
 		self.col_distances = (min(left_dists), min(right_dists), min(up_dists), min(down_dists))
+
 
 	def set_on_ground(self):
 		if self.col_distances[3] < 5:
