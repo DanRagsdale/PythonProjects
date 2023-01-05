@@ -1,4 +1,5 @@
 import pygame
+import math
 from pygame.locals import *
 
 from PIL import Image

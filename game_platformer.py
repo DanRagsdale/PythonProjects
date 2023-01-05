@@ -142,7 +142,7 @@ class Player(pygame.sprite.Sprite):
 		Idle, Running = range(2)
 		Textures = {Idle:tex_idle, Running:tex_run}
 
-		print(check_ray_rect_collision((2,-1,1,0), pygame.Rect(1,0,2,2)))
+		#print(check_ray_rect_collision((2,-1,1,0), pygame.Rect(1,0,2,2)))
 
 	def __init__(self, start_pos):
 		super().__init__()
@@ -198,7 +198,7 @@ class Player(pygame.sprite.Sprite):
 		#	print("Triggered: ", self.vel.x, self.vel.y)
 		#	self.vel = vec(0,0)
 
-		print(self.col_distances)
+		#print(self.col_distances)
 		self.pos += self.vel
 		self.rect.midbottom = self.pos
 
@@ -314,20 +314,22 @@ class Blocks:
 	Cobble = add_block((0x10,0x10,0x10), tex_cobble, True)
 
 class Button(pygame.sprite.Sprite):
-	def __init__(self, level_name):
+	def __init__(self, x, y, level_name):
 		super().__init__()
 		self.level_name = level_name
 
-		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
-		self.surf.fill((255,255,0))
+		button_size = (500, 80)
 
 		if os.path.exists(os.path.join(path, "data", "platformer", "thumbnails", level_name)):
-			self.texture = pygame.image.load(os.path.join(path, "data", "platformer", "thumbnails", level_name))
+			img = pygame.image.load(os.path.join(path, "data", "platformer", "thumbnails", level_name))
+			button_size = (80 / img.get_height() * img.get_width(), 80) 	
+			img = pygame.transform.scale(img, button_size)
+			self.texture = img
 		else:
-			self.texture = pygame.Surface((5 * BLOCK_SIZE, BLOCK_SIZE))
-
-		self.anim_index = 0
-
+			self.texture = pygame.Surface(button_size)
+			self.texture.fill((128,128,128))
+		
+		self.rect = Rect(x, y, *button_size)
 
 class Game():
 	def __init__(self):
@@ -466,18 +468,18 @@ class Game():
 		self.gui = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 		self.gui.set_colorkey((255,0,255))
 
-		self.scroll_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+		self.scroll_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), flags=SRCALPHA)
 		self.scroll_surf.set_colorkey((255,0,255))
 
 		start_buttons = []
-		for i in range(0, len(self.map_names)):
-			button = pygame.Rect(0,SCREEN_HEIGHT / 3 + i * 100,160,80)
+		for i, name in enumerate(self.map_names):
+			button = Button(0, SCREEN_HEIGHT / 3 + i * 100, name)
 			start_buttons.append(button)
 
 		while running:
 			current_time = time.perf_counter()
 
-			if (current_time - last_frame) > 1.0 / 57:
+			if (current_time - last_frame) > 1.0 / 57 and state != 0:
 				print("Stuttering")
 
 
@@ -490,13 +492,13 @@ class Game():
 						running = False
 					elif event.type == MOUSEBUTTONDOWN and event.button == 1:
 						for i, button in enumerate(start_buttons):
-							if button.collidepoint(mouse_pos[0], mouse_pos[1]):
+							if button.rect.collidepoint(mouse_pos[0], mouse_pos[1]):
 								self.load_level(self.map_names[i])
 								current_level = i
 								state = 1
 					elif event.type == MOUSEWHEEL:
 						for button in start_buttons:
-							button.centery += 10 * event.y
+							button.rect.centery += 10 * event.y
 					elif event.type == KEYDOWN:
 						if event.key == K_SPACE:
 							self.load_level(self.map_names[current_level])
@@ -530,20 +532,9 @@ class Game():
 				self.window_pos[0] += abs(self.player.vel.x)
 	
 			
-			self.gui.fill((255,0,255))
+			self.gui.fill((255,0,255,0))
 			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
 			pygame.Surface.blit(self.gui,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
-
-			self.scroll_surf.fill((255,0,255))
-
-			if state == 0:
-				# Blit menu GUI
-				for button in start_buttons:
-					pygame.Surface.fill(self.scroll_surf, (128,128,128), button)
-				self.scroll_surf.fill((255,0,255),(0,0, SCREEN_WIDTH, SCREEN_HEIGHT / 3))
-
-				pygame.Surface.blit(self.gui, self.scroll_surf, (0,0))
-
 
 			self.game_map.fill((100,100,220))
 			self.game_map.blit(self.background, (0,0))
@@ -551,11 +542,20 @@ class Game():
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
 
-
-
 			window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
 			window.blit(self.gui, (0,0))
+
+			if state == 0:
+				self.scroll_surf.fill((40,40,40, 100))
+				self.scroll_surf.convert_alpha()
+				# Blit menu GUI
+				for button in start_buttons:
+					self.scroll_surf.blit(button.texture, button.rect)
+					#pygame.Surface.fill(self.scroll_surf, (128,128,128), button.rect)
+				self.scroll_surf.fill((255,0,255),(0,0, SCREEN_WIDTH, SCREEN_HEIGHT / 3))
+
+				window.blit(self.scroll_surf, (0,0))
 
 			pygame.display.update()
 
