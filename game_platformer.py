@@ -41,6 +41,8 @@ path, name = os.path.split(module.__file__)
 pygame.display.set_caption("Platformer Creator")
 font = pygame.font.SysFont("Arial Black", 30)
 
+gui_congratulations = pygame.image.load(os.path.join(path, "res", "platformer", "sprites", "congratulations.png")).convert()
+gui_congratulations.set_colorkey((255,0,255))
 
 sheet_player = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_player.png"), PLAYER_WIDTH, PLAYER_HEIGHT)
 tex_idle = sheet_player.load_strip(0, 3, (255,0,255))
@@ -103,6 +105,7 @@ class Flag(pygame.sprite.Sprite):
 					game.score += 2000
 					self.state = 1
 					self.anim_index = 0
+					game.state = 2
 
 
 	def update_anims(self, game):
@@ -379,6 +382,7 @@ class Game():
 		self.map_names.sort()
 		print(self.map_names)
 
+		self.state = 0
 		self.main_loop()
 
 	def load_level(self, level_name):
@@ -504,7 +508,6 @@ class Game():
 	def main_loop(self):
 		last_frame = last_anim = time.perf_counter()
 		current_level = 0
-		state = 0
 		frame_count = 0
 		running = True
 
@@ -524,14 +527,14 @@ class Game():
 		while running:
 			current_time = time.perf_counter()
 
-			if (current_time - last_frame) > 1.0 / 57 and state != 0:
+			if (current_time - last_frame) > 1.0 / 57 and self.state != 0:
 				print("Stuttering")
 
 
 			mouse_pos = pygame.mouse.get_pos()
 
 			# Update Game
-			if state == 0:
+			if self.state == 0 or self.state == 2:
 				for event in pygame.event.get():
 					if event.type == QUIT:
 						running = False
@@ -540,14 +543,14 @@ class Game():
 							if button.rect.collidepoint(mouse_pos[0], mouse_pos[1]):
 								self.load_level(self.map_names[i])
 								current_level = i
-								state = 1
+								self.state = 1
 					elif event.type == MOUSEWHEEL:
 						for button in start_buttons:
 							button.rect.centery += 10 * event.y
 					elif event.type == KEYDOWN:
 						if event.key == K_SPACE:
 							self.load_level(self.map_names[current_level])
-							state = 1
+							self.state = 1
 			else:
 				for event in pygame.event.get():
 					if event.type == QUIT:
@@ -560,7 +563,7 @@ class Game():
 					entity.update(self)
 
 				if self.player.pos.y > SCREEN_HEIGHT + PLAYER_HEIGHT + 1:
-					state = 0
+					self.state = 0
 			
 			#Update Animations
 			if current_time - last_anim > 1.0 / ANIM_RATE:
@@ -586,12 +589,13 @@ class Game():
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
 
-			# Blit Game Map, GUI, and Main menu onto the screen
+			# Blit game elements on to the screen	
 			window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
-			window.blit(self.gui, (0,0))
 
-			if state == 0:
+			# Blit Gui Elements on to the screen
+			window.blit(self.gui, (0,0))
+			if self.state == 0 or self.state == 2:
 				self.scroll_surf.fill((40,40,40, 100))
 				self.scroll_surf.convert_alpha()
 				# Blit menu GUI
@@ -600,6 +604,12 @@ class Game():
 					#pygame.Surface.fill(self.scroll_surf, (128,128,128), button.rect)
 
 				window.blit(self.scroll_surf, (0,0))
+
+			# Display congrats message
+			if self.state == 2:
+				x_pos = (SCREEN_WIDTH - gui_congratulations.get_width()) / 2
+				window.blit(gui_congratulations, (x_pos,0))
+
 
 			pygame.display.update()
 
