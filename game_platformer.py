@@ -46,6 +46,10 @@ sheet_player = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "s
 tex_idle = sheet_player.load_strip(0, 3, (255,0,255))
 tex_run = sheet_player.load_strip(1, 6, (255,0,255))
 
+sheet_flag = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_flag.png"), BLOCK_SIZE * 2, BLOCK_SIZE * 2)
+tex_flag_up = sheet_flag.load_strip(0, 5, (255,0,255))
+tex_flag_down = sheet_flag.load_strip(1, 5, (255,0,255))
+
 sheet_coin = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_coin.png"), BLOCK_SIZE, BLOCK_SIZE)
 tex_coin = sheet_coin.load_strip(0, 8, (255,0,255))
 
@@ -77,6 +81,42 @@ class Platform(pygame.sprite.Sprite):
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
 		self.texture = texture
+
+class Flag(pygame.sprite.Sprite):
+	def __init__(self, x, y):
+		super().__init__()
+		
+		self.surf = pygame.Surface((2 * BLOCK_SIZE, 2 * BLOCK_SIZE))
+		self.surf.fill((255,255,0))
+		self.rect = self.surf.get_rect(topleft=(x,y-BLOCK_SIZE))
+
+		self.texture = tex_flag_up[0]
+		self.anim_index = 0
+
+		self.state = 0
+
+	def update(self, game):
+		if self.state == 0:
+			collisions = pygame.sprite.spritecollide(self, game.entities, False)
+			for col in collisions:
+				if isinstance(col, Player):
+					game.score += 2000
+					self.state = 1
+					self.anim_index = 0
+
+
+	def update_anims(self, game):
+		self.anim_index += 1
+		if self.state == 0:
+			texture_list = tex_flag_up
+			if self.anim_index >= len(texture_list):
+				self.anim_index = 0
+		else:
+			texture_list = tex_flag_down
+			if self.anim_index >= len(texture_list):
+				self.anim_index = len(texture_list) - 1
+
+		self.texture = texture_list[self.anim_index]
 
 class Coin(pygame.sprite.Sprite):
 	def __init__(self, x, y):
@@ -207,6 +247,7 @@ class Player(pygame.sprite.Sprite):
 			self.vel.y = JUMP_VEL
 
 	def update(self, game):
+		self.move(game)
 		self.set_on_ground()
 		
 		collisions = pygame.sprite.spritecollide(self, game.entities, False)
@@ -304,6 +345,7 @@ class Blocks:
 		return b
 
 	Spawn = add_block((0xff,0x00,0x00), None, False)
+	Flag = add_block((0xff,0x50,0x00), None, False)
 	Coin = add_block((0xff,0xff,0x00), None, False)
 	Crab = add_block((0xff,0x80,0x80), None, False)
 
@@ -359,6 +401,9 @@ class Game():
 				
 				if pixel == Blocks.Spawn.id:
 					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE - 2)
+				elif pixel == Blocks.Flag.id:
+					flag = Flag(x * BLOCK_SIZE, y * BLOCK_SIZE)
+					self.entities.add(flag)
 				elif pixel == Blocks.Coin.id:
 					coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
 					self.entities.add(coin)
@@ -511,8 +556,6 @@ class Game():
 						if event.key == K_SPACE:
 							self.player.jump()
 
-				self.player.move(self)
-
 				for entity in self.entities:
 					entity.update(self)
 
@@ -526,12 +569,13 @@ class Game():
 				last_anim = current_time
 
 			# Rendering Code
+			# Move window along with player
 			if self.player.pos.x > (-self.window_pos[0] + SCREEN_WIDTH * 0.7):
 				self.window_pos[0] -= abs(self.player.vel.x)
 			if self.player.pos.x < (-self.window_pos[0] + SCREEN_WIDTH * 0.2) and self.player.pos.x > SCREEN_WIDTH * 0.2:
 				self.window_pos[0] += abs(self.player.vel.x)
-	
-			
+
+			# Create game map surface	
 			self.gui.fill((255,0,255,0))
 			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
 			pygame.Surface.blit(self.gui,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
@@ -542,6 +586,7 @@ class Game():
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
 
+			# Blit Game Map, GUI, and Main menu onto the screen
 			window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
 			window.blit(self.gui, (0,0))
@@ -553,7 +598,6 @@ class Game():
 				for button in start_buttons:
 					self.scroll_surf.blit(button.texture, button.rect)
 					#pygame.Surface.fill(self.scroll_surf, (128,128,128), button.rect)
-				self.scroll_surf.fill((255,0,255),(0,0, SCREEN_WIDTH, SCREEN_HEIGHT / 3))
 
 				window.blit(self.scroll_surf, (0,0))
 
