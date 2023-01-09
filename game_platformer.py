@@ -105,7 +105,7 @@ class Flag(pygame.sprite.Sprite):
 					game.score += 2000
 					self.state = 1
 					self.anim_index = 0
-					game.state = 2
+					game.state = Game.State.Win
 
 
 	def update_anims(self, game):
@@ -260,6 +260,8 @@ class Player(pygame.sprite.Sprite):
 					game.score += 1000
 					self.vel.y = JUMP_VEL
 					col.kill()
+				else:
+					game.state = Game.State.Lost
 
 	def update_anims(self, game):
 		if abs(self.vel.x) > 0.2:
@@ -377,12 +379,16 @@ class Button(pygame.sprite.Sprite):
 		self.rect = Rect(x, y, *button_size)
 
 class Game():
+	class State:
+		Playing, Start, Lost, Win = range(4)
+		is_menu = {Start:True, Lost:True, Win:True}
+
 	def __init__(self):
 		self.map_names = os.listdir(os.path.join(path, "res", "platformer", "maps"))
 		self.map_names.sort()
 		print(self.map_names)
 
-		self.state = 0
+		self.state = Game.State.Start
 		self.main_loop()
 
 	def load_level(self, level_name):
@@ -527,14 +533,14 @@ class Game():
 		while running:
 			current_time = time.perf_counter()
 
-			if (current_time - last_frame) > 1.0 / 57 and self.state != 0:
+			if (current_time - last_frame) > 1.0 / 57 and not Game.State.is_menu.get(self.state):
 				print("Stuttering")
 
 
 			mouse_pos = pygame.mouse.get_pos()
 
 			# Update Game
-			if self.state == 0 or self.state == 2:
+			if Game.State.is_menu.get(self.state):
 				for event in pygame.event.get():
 					if event.type == QUIT:
 						running = False
@@ -543,14 +549,14 @@ class Game():
 							if button.rect.collidepoint(mouse_pos[0], mouse_pos[1]):
 								self.load_level(self.map_names[i])
 								current_level = i
-								self.state = 1
+								self.state = Game.State.Playing
 					elif event.type == MOUSEWHEEL:
 						for button in start_buttons:
 							button.rect.centery += 10 * event.y
 					elif event.type == KEYDOWN:
 						if event.key == K_SPACE:
 							self.load_level(self.map_names[current_level])
-							self.state = 1
+							self.state = Game.State.Playing
 			else:
 				for event in pygame.event.get():
 					if event.type == QUIT:
@@ -563,7 +569,7 @@ class Game():
 					entity.update(self)
 
 				if self.player.pos.y > SCREEN_HEIGHT + PLAYER_HEIGHT + 1:
-					self.state = 0
+					self.state = Game.State.Lost
 			
 			#Update Animations
 			if current_time - last_anim > 1.0 / ANIM_RATE:
@@ -595,7 +601,7 @@ class Game():
 
 			# Blit Gui Elements on to the screen
 			window.blit(self.gui, (0,0))
-			if self.state == 0 or self.state == 2:
+			if Game.State.is_menu.get(self.state):
 				self.scroll_surf.fill((40,40,40, 100))
 				self.scroll_surf.convert_alpha()
 				# Blit menu GUI
@@ -606,7 +612,7 @@ class Game():
 				window.blit(self.scroll_surf, (0,0))
 
 			# Display congrats message
-			if self.state == 2:
+			if self.state == Game.State.Win:
 				x_pos = (SCREEN_WIDTH - gui_congratulations.get_width()) / 2
 				window.blit(gui_congratulations, (x_pos,0))
 
