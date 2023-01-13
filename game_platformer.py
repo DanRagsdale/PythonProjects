@@ -234,12 +234,58 @@ class Player(pygame.sprite.Sprite):
 		self.vel.y = max(min(self.vel.y, self.col_distances[3]), -self.col_distances[2])
 		self.vel.x = max(min(self.vel.x, self.col_distances[1]), -self.col_distances[0])
 
-		
-		#leg = self.col_distances[5] * 0.707
-		#print(leg, self.vel)
-		#if self.vel.x > leg and self.vel.y > leg:
-		#	print("Triggered: ", self.vel.x, self.vel.y)
-		#	self.vel = vec(0,0)
+		grid_x = int(self.rect.centerx / BLOCK_SIZE)
+		grid_y = int(self.rect.centery / BLOCK_SIZE)
+		for x,y in [(x,y) for x in range(grid_x-3,grid_x+4) for y in range(grid_y-3,grid_y+4)]:
+			if not (0 <= x < len(game.solids_map)) or not (0 <= y < len(game.solids_map[0])):
+				continue
+			if game.solids_map[x][y] == 0:
+				continue
+			test_rect = pygame.Rect((x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+
+			# Raycast Down Right
+			test_dr = [1000]
+			test_dr.append(check_ray_rect_collision((self.rect.right, self.rect.bottom, *self.vel), test_rect))
+			test_dr.append(check_ray_rect_collision((self.rect.right - 3, self.rect.bottom, *self.vel), test_rect))
+			test_dr.append(check_ray_rect_collision((self.rect.right, self.rect.bottom - 3, *self.vel), test_rect))
+			if min(test_dr) < self.vel.length():
+				if abs(self.vel.x) > abs(self.vel.y):
+					self.vel.y = -1
+				else:
+					self.vel.x = -1
+			
+			# Raycast Down Left
+			test_dl = [1000]
+			test_dl.append(check_ray_rect_collision((self.rect.left, self.rect.bottom, *self.vel), test_rect))
+			test_dl.append(check_ray_rect_collision((self.rect.left + 3, self.rect.bottom, *self.vel), test_rect))
+			test_dl.append(check_ray_rect_collision((self.rect.left, self.rect.bottom - 3, *self.vel), test_rect))
+			if min(test_dl) < self.vel.length():
+				if abs(self.vel.x) > abs(self.vel.y):
+					self.vel.y = -1
+				else:
+					self.vel.x = 1
+			
+			# Raycast Up Right
+			test_ur = [1000]
+			test_ur.append(check_ray_rect_collision((self.rect.right, self.rect.top, *self.vel), test_rect))
+			test_ur.append(check_ray_rect_collision((self.rect.right - 3, self.rect.top, *self.vel), test_rect))
+			test_ur.append(check_ray_rect_collision((self.rect.right, self.rect.top + 3, *self.vel), test_rect))
+			if min(test_ur) < self.vel.length():
+				if abs(self.vel.x) > abs(self.vel.y):
+					self.vel.y = 1
+				else:
+					self.vel.x = -1
+			
+			# Raycast Up Left
+			test_ul = [1000]
+			test_ul.append(check_ray_rect_collision((self.rect.left, self.rect.top, *self.vel), test_rect))
+			test_ul.append(check_ray_rect_collision((self.rect.left + 3, self.rect.top, *self.vel), test_rect))
+			test_ul.append(check_ray_rect_collision((self.rect.left, self.rect.top + 3, *self.vel), test_rect))
+			if min(test_ul) < self.vel.length():
+				if abs(self.vel.x) > abs(self.vel.y):
+					self.vel.y = 1
+				else:
+					self.vel.x = 1
 
 		#print(self.col_distances)
 		self.pos += self.vel
@@ -587,20 +633,20 @@ class Game():
 			# Create game map surface	
 			self.gui.fill((255,0,255,0))
 			score_text = font.render('Score: ' + str(self.score), False, (255,255,255))
-			pygame.Surface.blit(self.gui,score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
+			self.gui.blit(score_text, (1 * BLOCK_SIZE, 1 * BLOCK_SIZE))
 
-			self.game_map.fill((100,100,220))
+			#self.game_map.fill((100,100,220))
 			self.game_map.blit(self.background, (0,0))
 	
 			for entity in self.entities:
 				self.game_map.blit(entity.texture, entity.rect)
 
 			# Blit game elements on to the screen	
-			window.fill((0,0,0))
+			#window.fill((0,0,0))
 			window.blit(self.game_map, self.window_pos)
-
-			# Blit Gui Elements on to the screen
 			window.blit(self.gui, (0,0))
+
+			# Blit menu elements on to the screen
 			if Game.State.is_menu.get(self.state):
 				self.scroll_surf.fill((40,40,40, 100))
 				self.scroll_surf.convert_alpha()
