@@ -60,6 +60,9 @@ tex_coin = sheet_items.load_strip(0, 8, (255,0,255))
 tex_crab = sheet_items.load_strip(1, 2, (255,0,255))
 tex_star = sheet_items.load_strip(2, 4, (255,0,255))
 
+tex_box_fresh = sheet_items.load_strip(3, 7, (255,0,255))
+tex_box_hit = sheet_items.load_strip(4, 1, (255,0,255))
+
 sheet_textures = Spritesheet(os.path.join(path, "res", "platformer", "textures", "sheet_textures.png"), BLOCK_SIZE, BLOCK_SIZE)
 
 tex_stone = sheet_textures.image_from_index(0, 0, (255,0,255))
@@ -84,7 +87,7 @@ class Platform(pygame.sprite.Sprite):
 		self.surf.fill((255,0,0))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
-		self.texture = texture
+		self.image = texture
 
 class Flag(pygame.sprite.Sprite):
 	def __init__(self, x, y):
@@ -94,7 +97,7 @@ class Flag(pygame.sprite.Sprite):
 		self.surf.fill((255,255,0))
 		self.rect = self.surf.get_rect(topleft=(x,y-BLOCK_SIZE))
 
-		self.texture = tex_flag_up[0]
+		self.image = tex_flag_up[0]
 		self.anim_index = 0
 
 		self.state = 0
@@ -121,7 +124,7 @@ class Flag(pygame.sprite.Sprite):
 			if self.anim_index >= len(texture_list):
 				self.anim_index = len(texture_list) - 1
 
-		self.texture = texture_list[self.anim_index]
+		self.image = texture_list[self.anim_index]
 
 class Coin(pygame.sprite.Sprite):
 	def __init__(self, x, y):
@@ -131,7 +134,7 @@ class Coin(pygame.sprite.Sprite):
 		self.surf.fill((255,255,0))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
-		self.texture = tex_coin[0]
+		self.image = tex_coin[0]
 		self.anim_index = 0
 
 	def update(self, game):
@@ -147,7 +150,7 @@ class Coin(pygame.sprite.Sprite):
 
 		if self.anim_index >= len(texture_list):
 			self.anim_index = 0
-		self.texture = texture_list[self.anim_index]
+		self.image = texture_list[self.anim_index]
 
 class Crab(pygame.sprite.Sprite):
 	def __init__(self, x, y):
@@ -157,7 +160,7 @@ class Crab(pygame.sprite.Sprite):
 		self.surf.fill((255,255,0))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
-		self.texture = tex_crab[0]
+		self.image = tex_crab[0]
 		self.anim_index = 0
 
 		self.dir = 1
@@ -180,21 +183,31 @@ class Crab(pygame.sprite.Sprite):
 
 		if self.anim_index >= len(texture_list):
 			self.anim_index = 0
-		self.texture = texture_list[self.anim_index]
+		self.image = texture_list[self.anim_index]
 
 class Star(pygame.sprite.Sprite):
-	def __init__(self, x, y):
+	def __init__(self, x, y, box_spawn=False):
 		super().__init__()
 
 		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
 		self.surf.fill((128,128,128))
 		self.rect = self.surf.get_rect(topleft=(x,y))
 
-		self.texture = tex_star[0]
+		self.image = tex_star[0]
 		self.anim_index = 0
 
 		self.vel = vec(3, -4)
+
+		self.climb_remaining = 0
+		if box_spawn:
+			self.climb_remaining = BLOCK_SIZE
+
 	def update(self, game):
+		if self.climb_remaining > 0:
+			self.climb_remaining -= 1
+			self.rect.centery -= 1
+			return
+
 		self.vel.y += 0.2
 		if abs(self.vel.y) > 6:
 			self.vel.y = math.copysign(6, self.vel.y)
@@ -233,13 +246,13 @@ class Star(pygame.sprite.Sprite):
 			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.centery, 1, 0), test_rect))
 			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.bottom, 1, 0), test_rect))
 
-		if min(up_dists) < 5:
+		if min(up_dists) < 7:
 			self.vel.y = abs(self.vel.y)
-		if min(down_dists) < 5:
+		if min(down_dists) < 7:
 			self.vel.y = -abs(self.vel.y)
-		if min(left_dists) < 5:
+		if min(left_dists) < 7:
 			self.vel.x = abs(self.vel.x)
-		if min(right_dists) < 5:
+		if min(right_dists) < 7:
 			self.vel.x = -abs(self.vel.x)
 
 
@@ -251,7 +264,47 @@ class Star(pygame.sprite.Sprite):
 
 		if self.anim_index >= len(texture_list):
 			self.anim_index = 0
-		self.texture = texture_list[self.anim_index]
+		self.image = texture_list[self.anim_index]
+
+class Box(pygame.sprite.Sprite):
+	def __init__(self, x, y):
+		super().__init__()
+		
+		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
+		self.surf.fill((255,255,0))
+		self.rect = self.surf.get_rect(topleft=(x,y))
+
+		self.image = tex_box_fresh[0]
+		self.anim_index = 0
+
+		self.is_hit = False
+
+	def update(self, game):
+		grid_x = int(self.rect.centerx / BLOCK_SIZE)
+		grid_y = int(self.rect.centery / BLOCK_SIZE)
+		player_grid_x = int(game.player.rect.centerx / BLOCK_SIZE)
+		player_grid_y = int(game.player.rect.centery / BLOCK_SIZE)
+
+		if not self.is_hit:	
+			if  (game.player.rect.right > self.rect.left and game.player.rect.left < self.rect.right and 
+				-1 < game.player.rect.top - self.rect.bottom < 3 and game.player.vel.y < 0):	
+
+				game.score += 300
+				self.is_hit = True
+
+				star = Star(self.rect.left, self.rect.top, box_spawn=True)
+				game.entities.add(star, layer=0)
+
+	def update_anims(self, game):
+		self.anim_index += 1
+		if self.is_hit:
+			texture_list = tex_box_hit
+		else:
+			texture_list = tex_box_fresh
+
+		if self.anim_index >= len(texture_list):
+			self.anim_index = 0
+		self.image = texture_list[self.anim_index]
 
 class Player(pygame.sprite.Sprite):
 	class State:
@@ -281,7 +334,7 @@ class Player(pygame.sprite.Sprite):
 		self.anim_index = 0
 		self.invincibility = 0
 
-		self.texture = tex_idle[0]
+		self.image = tex_idle[0]
 
 	def move(self, game):
 		true_grav = GRAVITY	
@@ -379,7 +432,7 @@ class Player(pygame.sprite.Sprite):
 		
 		self.invincibility -= 1
 		if self.invincibility > 0 and self.invincibility % 4 > 1:
-			self.texture = tex_blank
+			self.image = tex_blank
 		elif self.invincibility > 0:
 			self.set_texture(game)
 
@@ -420,9 +473,9 @@ class Player(pygame.sprite.Sprite):
 		texture_list = Player.State.Textures[self.current_state+self.power_state]
 
 		if self.direction:
-			self.texture = texture_list[self.anim_index]
+			self.image = texture_list[self.anim_index]
 		else:
-			self.texture = pygame.transform.flip(texture_list[self.anim_index], True, False)
+			self.image = pygame.transform.flip(texture_list[self.anim_index], True, False)
 
 	def update_distances(self, game):
 		offset = 1
@@ -478,7 +531,7 @@ Block_Dict = {}
 class Block:
 	def __init__(self, id, tex, is_solid):
 		self.id = id	
-		self.texture = tex
+		self.image = tex
 		self.is_solid = is_solid
 
 class Blocks:
@@ -492,6 +545,8 @@ class Blocks:
 	Coin = add_block((0xff,0xff,0x00), None, False)
 	Crab = add_block((0xff,0x80,0x80), None, False)
 	Star = add_block((0x00,0x00,0xff), None, False)
+	
+	Box = add_block((0x10,0x00,0xff), None, True)
 
 	Dirt = add_block((0xff,0x88,0x00), tex_dirt, True)
 	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
@@ -510,10 +565,10 @@ class Button(pygame.sprite.Sprite):
 			img = pygame.image.load(os.path.join(path, "data", "platformer", "thumbnails", level_name))
 			button_size = (80 / img.get_height() * img.get_width(), 80) 	
 			img = pygame.transform.scale(img, button_size)
-			self.texture = img
+			self.image = img
 		else:
-			self.texture = pygame.Surface(button_size)
-			self.texture.fill((128,128,128))
+			self.image = pygame.Surface(button_size)
+			self.image.fill((128,128,128))
 		
 		self.rect = Rect(x, y, *button_size)
 
@@ -535,7 +590,7 @@ class Game():
 		START_POS = vec(0,0)
 
 		self.platforms = pygame.sprite.Group()
-		self.entities = pygame.sprite.Group()
+		self.entities = pygame.sprite.LayeredUpdates()
 
 		img = Image.open(os.path.join(path, "res", "platformer", "maps", level_name))
 
@@ -552,16 +607,19 @@ class Game():
 					START_POS = vec(x * BLOCK_SIZE, y * BLOCK_SIZE + BLOCK_SIZE - 2)
 				elif pixel == Blocks.Flag.id:
 					flag = Flag(x * BLOCK_SIZE, y * BLOCK_SIZE)
-					self.entities.add(flag)
+					self.entities.add(flag, layer=2)
 				elif pixel == Blocks.Coin.id:
 					coin = Coin(x * BLOCK_SIZE, y * BLOCK_SIZE)
-					self.entities.add(coin)
+					self.entities.add(coin, layer=0)
 				elif pixel == Blocks.Crab.id:
 					crab = Crab(x * BLOCK_SIZE, y * BLOCK_SIZE)
-					self.entities.add(crab)
+					self.entities.add(crab, layer=1)
 				elif pixel == Blocks.Star.id:
 					star = Star(x * BLOCK_SIZE, y * BLOCK_SIZE)
-					self.entities.add(star)
+					self.entities.add(star, layer=0)
+				elif pixel == Blocks.Box.id:
+					box = Box(x * BLOCK_SIZE, y * BLOCK_SIZE)
+					self.entities.add(box, layer=1)
 				elif pixel == Blocks.Dirt.id:
 					dirt_textures = [tex_dirt_l, tex_dirt_r, tex_dirt]
 
@@ -628,13 +686,13 @@ class Game():
 					self.platforms.add(plat)
 				else:
 					if pixel in Block_Dict:
-						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, Block_Dict[pixel].texture)
+						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, Block_Dict[pixel].image)
 					else:
 						plat = Platform(x * BLOCK_SIZE, y * BLOCK_SIZE, tex_dirt)
 					self.platforms.add(plat)
 
 		self.player = Player(START_POS)
-		self.entities.add(self.player)
+		self.entities.add(self.player, layer=2)
 
 		self.game_map = pygame.Surface((img.size[0] * BLOCK_SIZE, img.size[1] * BLOCK_SIZE))
 		self.game_map.set_colorkey((255,0,255))
@@ -643,7 +701,7 @@ class Game():
 		self.background.fill((100,100,220))
 
 		for plat in self.platforms:
-			self.background.blit(plat.texture, plat.rect)
+			self.background.blit(plat.image, plat.rect)
 		
 
 		if not os.path.exists(os.path.join(path, "data", "platformer", "thumbnails")):
@@ -733,9 +791,10 @@ class Game():
 
 			#self.game_map.fill((100,100,220))
 			self.game_map.blit(self.background, (0,0))
-	
-			for entity in self.entities:
-				self.game_map.blit(entity.texture, entity.rect)
+
+			self.entities.draw(self.game_map)	
+			#for entity in self.entities:
+			#	self.game_map.blit(entity.texture, entity.rect)
 
 			# Blit game elements on to the screen	
 			#window.fill((0,0,0))
@@ -748,7 +807,7 @@ class Game():
 				self.scroll_surf.convert_alpha()
 				# Blit menu GUI
 				for button in start_buttons:
-					self.scroll_surf.blit(button.texture, button.rect)
+					self.scroll_surf.blit(button.image, button.rect)
 					#pygame.Surface.fill(self.scroll_surf, (128,128,128), button.rect)
 
 				window.blit(self.scroll_surf, (0,0))
