@@ -47,16 +47,18 @@ gui_congratulations.set_colorkey((255,0,255))
 sheet_player = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_player.png"), PLAYER_WIDTH, PLAYER_HEIGHT)
 tex_idle = sheet_player.load_strip(0, 3, (255,0,255))
 tex_run = sheet_player.load_strip(1, 6, (255,0,255))
+tex_idle_strong = sheet_player.load_strip(2, 3, (255,0,255))
+tex_run_strong = sheet_player.load_strip(3, 6, (255,0,255))
+tex_blank = sheet_player.image_from_index(9, 0, (255,0,255))
 
 sheet_flag = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_flag.png"), BLOCK_SIZE * 2, BLOCK_SIZE * 2)
 tex_flag_up = sheet_flag.load_strip(0, 5, (255,0,255))
 tex_flag_down = sheet_flag.load_strip(1, 5, (255,0,255))
 
-sheet_coin = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_coin.png"), BLOCK_SIZE, BLOCK_SIZE)
-tex_coin = sheet_coin.load_strip(0, 8, (255,0,255))
-
-sheet_crab = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_crab.png"), BLOCK_SIZE, BLOCK_SIZE)
-tex_crab = sheet_crab.load_strip(0, 2, (255,0,255))
+sheet_items = Spritesheet(os.path.join(path, "res", "platformer", "sprites", "sheet_items.png"), BLOCK_SIZE, BLOCK_SIZE)
+tex_coin = sheet_items.load_strip(0, 8, (255,0,255))
+tex_crab = sheet_items.load_strip(1, 2, (255,0,255))
+tex_star = sheet_items.load_strip(2, 4, (255,0,255))
 
 sheet_textures = Spritesheet(os.path.join(path, "res", "platformer", "textures", "sheet_textures.png"), BLOCK_SIZE, BLOCK_SIZE)
 
@@ -180,10 +182,82 @@ class Crab(pygame.sprite.Sprite):
 			self.anim_index = 0
 		self.texture = texture_list[self.anim_index]
 
+class Star(pygame.sprite.Sprite):
+	def __init__(self, x, y):
+		super().__init__()
+
+		self.surf = pygame.Surface((BLOCK_SIZE, BLOCK_SIZE))
+		self.surf.fill((128,128,128))
+		self.rect = self.surf.get_rect(topleft=(x,y))
+
+		self.texture = tex_star[0]
+		self.anim_index = 0
+
+		self.vel = vec(3, -4)
+	def update(self, game):
+		self.vel.y += 0.2
+		if abs(self.vel.y) > 6:
+			self.vel.y = math.copysign(6, self.vel.y)
+		
+		up_dists = [float('inf')]
+		down_dists = [float('inf')]
+		left_dists = [float('inf')]
+		right_dists = [float('inf')]
+		
+		grid_x = int(self.rect.centerx / BLOCK_SIZE)
+		grid_y = int(self.rect.centery / BLOCK_SIZE)
+		for x,y in [(x,y) for x in range(grid_x-3,grid_x+4) for y in range(grid_y-3,grid_y+4)]:
+			if not (0 <= x < len(game.solids_map)) or not (0 <= y < len(game.solids_map[0])):
+				continue
+			if game.solids_map[x][y] == 0:
+				continue
+			test_rect = pygame.Rect((x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+
+			#Raycast upward
+			up_dists.append(check_ray_rect_collision((self.rect.left, self.rect.top, 0, -1), test_rect))
+			up_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.top, 0, -1), test_rect))
+			up_dists.append(check_ray_rect_collision((self.rect.right, self.rect.top, 0, -1), test_rect))
+
+			#Raycast downward
+			down_dists.append(check_ray_rect_collision((self.rect.left, self.rect.bottom, 0, 1), test_rect))
+			down_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.bottom, 0, 1), test_rect))
+			down_dists.append(check_ray_rect_collision((self.rect.right, self.rect.bottom, 0, 1), test_rect))
+
+			#Raycast left
+			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.top, -1, 0), test_rect))
+			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.centery, -1, 0), test_rect))
+			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.bottom, -1, 0), test_rect))
+
+			#Raycast right
+			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.top, 1, 0), test_rect))
+			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.centery, 1, 0), test_rect))
+			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.bottom, 1, 0), test_rect))
+
+		if min(up_dists) < 5:
+			self.vel.y = abs(self.vel.y)
+		if min(down_dists) < 5:
+			self.vel.y = -abs(self.vel.y)
+		if min(left_dists) < 5:
+			self.vel.x = abs(self.vel.x)
+		if min(right_dists) < 5:
+			self.vel.x = -abs(self.vel.x)
+
+
+
+		self.rect.center += self.vel
+	def update_anims(self, game):
+		self.anim_index += 1
+		texture_list = tex_star
+
+		if self.anim_index >= len(texture_list):
+			self.anim_index = 0
+		self.texture = texture_list[self.anim_index]
+
 class Player(pygame.sprite.Sprite):
 	class State:
-		Idle, Running = range(2)
-		Textures = {Idle:tex_idle, Running:tex_run}
+		Idle, Running, Idle_Strong, Running_Strong = range(4)
+		Neutral, Strong = 0, 2
+		Textures = {Idle:tex_idle, Running:tex_run, Idle_Strong:tex_idle_strong, Running_Strong:tex_run_strong}
 
 		#print(check_ray_rect_collision((2,-1,1,0), pygame.Rect(1,0,2,2)))
 
@@ -203,7 +277,9 @@ class Player(pygame.sprite.Sprite):
 
 		self.direction = True
 		self.current_state = Player.State.Idle
+		self.power_state = Player.State.Neutral
 		self.anim_index = 0
+		self.invincibility = 0
 
 		self.texture = tex_idle[0]
 
@@ -233,6 +309,8 @@ class Player(pygame.sprite.Sprite):
 
 		self.vel.y = max(min(self.vel.y, self.col_distances[3]), -self.col_distances[2])
 		self.vel.x = max(min(self.vel.x, self.col_distances[1]), -self.col_distances[0])
+
+		print(self.col_distances[3])
 
 		grid_x = int(self.rect.centerx / BLOCK_SIZE)
 		grid_y = int(self.rect.centery / BLOCK_SIZE)
@@ -299,6 +377,13 @@ class Player(pygame.sprite.Sprite):
 		self.move(game)
 		self.set_on_ground()
 		
+		self.invincibility -= 1
+		if self.invincibility > 0 and self.invincibility % 4 > 1:
+			self.texture = tex_blank
+		elif self.invincibility > 0:
+			self.set_texture(game)
+
+
 		collisions = pygame.sprite.spritecollide(self, game.entities, False)
 		for col in collisions:
 			if isinstance(col, Crab):
@@ -307,7 +392,15 @@ class Player(pygame.sprite.Sprite):
 					self.vel.y = JUMP_VEL
 					col.kill()
 				else:
-					game.state = Game.State.Lost
+					if self.power_state == Player.State.Neutral and self.invincibility <= 0:
+						game.state = Game.State.Lost
+					elif self.power_state != Player.State.Neutral:
+						self.invincibility = 30
+						self.power_state = Player.State.Neutral
+			elif isinstance(col, Star):
+				game.score += 2000
+				self.power_state = Player.State.Strong
+				col.kill()
 
 	def update_anims(self, game):
 		if abs(self.vel.x) > 0.2:
@@ -315,11 +408,17 @@ class Player(pygame.sprite.Sprite):
 		else:
 			self.current_state = Player.State.Idle
 
+		texture_list = Player.State.Textures[self.current_state+self.power_state]
+		
 		self.anim_index += 1
-		texture_list = Player.State.Textures[self.current_state]
-
 		if self.anim_index >= len(texture_list):
 			self.anim_index = 0
+		
+		self.set_texture(game)
+	
+	def set_texture(self, game):
+		texture_list = Player.State.Textures[self.current_state+self.power_state]
+
 		if self.direction:
 			self.texture = texture_list[self.anim_index]
 		else:
@@ -327,6 +426,7 @@ class Player(pygame.sprite.Sprite):
 
 	def update_distances(self, game):
 		offset = 1
+		inset = 1
 
 		grid_x = int(self.rect.centerx / BLOCK_SIZE)
 		grid_y = int(self.rect.centery / BLOCK_SIZE)
@@ -336,9 +436,6 @@ class Player(pygame.sprite.Sprite):
 		left_dists = [float('inf')]
 		right_dists = [float('inf')]
 		
-		dl_dists = [float('inf')]
-		dr_dists = [float('inf')]
-
 		for x,y in [(x,y) for x in range(grid_x-3,grid_x+4) for y in range(grid_y-3,grid_y+4)]:
 			if not (0 <= x < len(game.solids_map)) or not (0 <= y < len(game.solids_map[0])):
 				continue
@@ -347,32 +444,27 @@ class Player(pygame.sprite.Sprite):
 			test_rect = pygame.Rect((x*BLOCK_SIZE, y*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
 
 			#Raycast upward
-			up_dists.append(check_ray_rect_collision((self.rect.left+offset, self.rect.top, 0, -1), test_rect))
-			up_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.top, 0, -1), test_rect))
-			up_dists.append(check_ray_rect_collision((self.rect.right-offset, self.rect.top, 0, -1), test_rect))
+			up_dists.append(check_ray_rect_collision((self.rect.left+offset, self.rect.top+inset, 0, -1), test_rect))
+			up_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.top+inset, 0, -1), test_rect))
+			up_dists.append(check_ray_rect_collision((self.rect.right-offset, self.rect.top+inset, 0, -1), test_rect))
 
 			#Raycast downward
-			down_dists.append(check_ray_rect_collision((self.rect.left+offset, self.rect.bottom, 0, 1), test_rect))
-			down_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.bottom, 0, 1), test_rect))
-			down_dists.append(check_ray_rect_collision((self.rect.right-offset, self.rect.bottom, 0, 1), test_rect))
+			down_dists.append(check_ray_rect_collision((self.rect.left+offset, self.rect.bottom-inset, 0, 1), test_rect))
+			down_dists.append(check_ray_rect_collision((self.rect.centerx, self.rect.bottom-inset, 0, 1), test_rect))
+			down_dists.append(check_ray_rect_collision((self.rect.right-offset, self.rect.bottom-inset, 0, 1), test_rect))
 
 			#Raycast left
-			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.top, -1, 0), test_rect))
-			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.centery, -1, 0), test_rect))
-			left_dists.append(check_ray_rect_collision((self.rect.left, self.rect.bottom-offset, -1, 0), test_rect))
+			left_dists.append(check_ray_rect_collision((self.rect.left+inset, self.rect.top+offset, -1, 0), test_rect))
+			left_dists.append(check_ray_rect_collision((self.rect.left+inset, self.rect.centery, -1, 0), test_rect))
+			left_dists.append(check_ray_rect_collision((self.rect.left+inset, self.rect.bottom-offset, -1, 0), test_rect))
 
 			#Raycast right
-			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.top, 1, 0), test_rect))
-			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.centery, 1, 0), test_rect))
-			right_dists.append(check_ray_rect_collision((self.rect.right, self.rect.bottom-offset, 1, 0), test_rect))
+			right_dists.append(check_ray_rect_collision((self.rect.right-inset, self.rect.top+offset, 1, 0), test_rect))
+			right_dists.append(check_ray_rect_collision((self.rect.right-inset, self.rect.centery, 1, 0), test_rect))
+			right_dists.append(check_ray_rect_collision((self.rect.right-inset, self.rect.bottom-offset, 1, 0), test_rect))
 
-			#Raycast down-left
-			dl_dists.append(check_ray_rect_collision((self.rect.left, self.rect.bottom, -1, 1), test_rect))
-
-			#Raycast down-right
-			dr_dists.append(check_ray_rect_collision((self.rect.right, self.rect.bottom, 1, 1), test_rect))
-
-		self.col_distances = (min(left_dists) - offset, min(right_dists) - offset, min(up_dists) - offset, min(down_dists) - offset, min(dl_dists), min(dr_dists))
+		#self.col_distances = (min(left_dists) - offset, min(right_dists) - offset, min(up_dists) - offset, min(down_dists) - offset)
+		self.col_distances = (min(left_dists) - inset, min(right_dists) - inset, min(up_dists) - inset, min(down_dists) - inset)
 
 
 	def set_on_ground(self):
@@ -399,6 +491,7 @@ class Blocks:
 	Flag = add_block((0xff,0x50,0x00), None, False)
 	Coin = add_block((0xff,0xff,0x00), None, False)
 	Crab = add_block((0xff,0x80,0x80), None, False)
+	Star = add_block((0x00,0x00,0xff), None, False)
 
 	Dirt = add_block((0xff,0x88,0x00), tex_dirt, True)
 	Grass = add_block((0x00,0xff,0x00), tex_grass, True)
@@ -466,6 +559,9 @@ class Game():
 				elif pixel == Blocks.Crab.id:
 					crab = Crab(x * BLOCK_SIZE, y * BLOCK_SIZE)
 					self.entities.add(crab)
+				elif pixel == Blocks.Star.id:
+					star = Star(x * BLOCK_SIZE, y * BLOCK_SIZE)
+					self.entities.add(star)
 				elif pixel == Blocks.Dirt.id:
 					dirt_textures = [tex_dirt_l, tex_dirt_r, tex_dirt]
 
