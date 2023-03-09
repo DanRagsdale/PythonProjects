@@ -363,8 +363,6 @@ class Player(pygame.sprite.Sprite):
 		self.vel.y = max(min(self.vel.y, self.col_distances[3]), -self.col_distances[2])
 		self.vel.x = max(min(self.vel.x, self.col_distances[1]), -self.col_distances[0])
 
-		print(self.col_distances[3])
-
 		grid_x = int(self.rect.centerx / BLOCK_SIZE)
 		grid_y = int(self.rect.centery / BLOCK_SIZE)
 		for x,y in [(x,y) for x in range(grid_x-3,grid_x+4) for y in range(grid_y-3,grid_y+4)]:
@@ -448,7 +446,7 @@ class Player(pygame.sprite.Sprite):
 					if self.power_state == Player.State.Neutral and self.invincibility <= 0:
 						game.state = Game.State.Lost
 					elif self.power_state != Player.State.Neutral:
-						self.invincibility = 30
+						self.invincibility = 45
 						self.power_state = Player.State.Neutral
 			elif isinstance(col, Star):
 				game.score += 2000
