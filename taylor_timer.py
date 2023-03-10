@@ -103,23 +103,41 @@ shuffled_tracks = sorted_tracks
 random.shuffle(shuffled_tracks)
 
 # 10 minutes in ms 
-target_time = 10*60*1000
+target_time = 100*60*1000
 
-med_len = (sorted_tracks[len(sorted_tracks) / 2])['length']
+track_count = len(sorted_tracks)
+med_len = (sorted_tracks[track_count // 2])['length']
+
+tracks_needed = target_time // med_len
+print("Looking for a combination of %d tracks" % (tracks_needed))
 
 # Try every combination of n tracks in a pseudo random order
-# Return if a given combination has a total length within an acceptable threshold
+# Return early if a given combination has a total length within an acceptable threshold
 
 # 10007 is prime. Assuming len(tracks) is less than 10007, then 10007^n is coprime to len(tracks)^n
 # Therefore this will step through all the combinations of songs in pseudo-random order
+increment = 10_007**tracks_needed
+track_space = track_count**tracks_needed
 
-#increment = 10007
-#
-#
-#for track in sorted_tracks:
-#	test_track = {'length' : (target_time - track_len(track))}
-#
-#	comp_track_id = bisect.bisect_left(sorted_tracks, target_time - track_len(track), key=track_len)
-#	comp_track = sorted_tracks[comp_track_id]
-#
-#	print(track['name'] + "; " + comp_track['name'] + " : " + str(track_len(track) + track_len(comp_track)))
+test_index = 0
+
+for i in range(10_000):
+	test_tracks	= []
+	working_val = test_index
+	for t in range(tracks_needed):
+		test_tracks.append(shuffled_tracks[working_val % track_count])
+		working_val //= track_count
+
+	test_len = 0
+	for track in test_tracks:
+		test_len += track['length']
+
+	if abs(target_time - test_len) < 1000:
+		print("Success!!!! Target time of %d, real time of %d" % (target_time, test_len))
+		print("Completed in %d iterations" % (i))
+		print()
+		for t in test_tracks:
+			print(t['name'])
+		break
+
+	test_index = (test_index + increment) % track_space
