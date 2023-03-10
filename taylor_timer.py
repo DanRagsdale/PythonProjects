@@ -31,13 +31,24 @@ def get_token():
 	token = response.json()['access_token']
 	return token
 
-# Get a list of all Taylor Swift albums
-def get_albums(token):
+def get_artist_id(token, search_string):
+	query = quote(search_string)
+	search_url = f'https://api.spotify.com/v1/search?q={query}&type=artist&limit=1'
+	header_obj = {
+		'Authorization': 'Authorization: Bearer ' + token
+	}
+
+	response = requests.get(search_url, headers = header_obj)
+
+	return response.json()['artists']['items'][0]['id']
+
+# Get a list of all albums for a given artist
+def get_albums(token, artist_id):
 	albums = []
 
 	offset = 0
 	while True:
-		artists_album_url = 'https://api.spotify.com/v1/artists/06HL4z0CvFAxyc27GXpf02/albums?include_groups=album&market=US&limit=50&offset=' + str(offset)
+		artists_album_url = f'https://api.spotify.com/v1/artists/{artist_id}/albums?include_groups=album&market=US&limit=50&offset={offset}'
 		header_obj = {
 			'Authorization': 'Authorization: Bearer ' + token
 		}
@@ -120,7 +131,7 @@ def generate_playlist(tracks, target_time):
 
 	test_index = 0
 
-	for i in range(10_000):
+	for i in range(100_000):
 		test_tracks	= []
 		working_val = test_index
 		for t in range(tracks_needed):
@@ -142,14 +153,48 @@ def generate_playlist(tracks, target_time):
 	print("Failed :(")
 
 
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+
+from urllib.parse import quote
+
+class TimerWindow(Gtk.Window):
+	def __init__(self, token):
+		super().__init__(title="Hello World!")
+
+		self.token = token
+
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
+		self.add(vbox)
+
+		self.button = Gtk.Button(label="Click Me!")
+		self.button.connect('clicked', self.on_button_clicked)
+		vbox.pack_start(self.button, True, True, 0)
+
+		self.entry = Gtk.Entry()
+		self.entry.set_text("Taylor Swift")
+		vbox.pack_start(self.entry, True, True, 0)
+
+	def on_button_clicked(self, widget):
+		artist_id = get_artist_id(self.token, self.entry.get_text())
+		albums = get_albums(self.token, artist_id)
+		tracks = get_tracks(self.token, albums)
+		
+		print("Track DB Created")
+
+		generate_playlist(tracks, 10*60*1000)
+
+		print(artist_id)
+
 def main():
 	token = get_token()
-	albums = get_albums(token)
-	tracks = get_tracks(token, albums)
+	win = TimerWindow(token)
+	win.connect('destroy', Gtk.main_quit)
+	win.show_all()
+	Gtk.main()
 
-	print("Track DB Created")
 
-	generate_playlist(tracks, 100*60*1000)
 
 if __name__ == '__main__':
 	main()
