@@ -140,7 +140,7 @@ class PaceCalculator:
 		except ValueError:
 			pass
 
-
-root = Tk()
-PaceCalculator(root)
-root.mainloop()
+if __name__ == '__main__':
+	root = Tk()
+	PaceCalculator(root)
+	root.mainloop()
