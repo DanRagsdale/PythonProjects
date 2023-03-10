@@ -158,6 +158,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 
 from urllib.parse import quote
+from pytimeparse.timeparse import timeparse
 
 class TimerWindow(Gtk.Window):
 	def __init__(self, token):
@@ -169,21 +170,32 @@ class TimerWindow(Gtk.Window):
 		self.add(vbox)
 
 		self.button = Gtk.Button(label="Click Me!")
-		self.button.connect('clicked', self.on_button_clicked)
+		self.button.connect('clicked', self.generate_playlist)
 		vbox.pack_start(self.button, True, True, 0)
 
-		self.entry = Gtk.Entry()
-		self.entry.set_text("Taylor Swift")
-		vbox.pack_start(self.entry, True, True, 0)
+		self.artist_entry = Gtk.Entry()
+		self.artist_entry.set_text("Taylor Swift")
+		self.artist_entry.set_placeholder_text("Enter an Artist")
+		vbox.pack_start(self.artist_entry, True, True, 0)
 
-	def on_button_clicked(self, widget):
-		artist_id = get_artist_id(self.token, self.entry.get_text())
+		self.time_entry = Gtk.Entry()
+		self.time_entry.set_text("10:00")
+		self.time_entry.set_placeholder_text("Enter a duration")
+		vbox.pack_start(self.time_entry, True, True, 0)
+
+	def generate_playlist(self, widget):
+		target_time = timeparse(self.time_entry.get_text())
+		if target_time is None:
+			print("Please enter a valid time!")
+			return
+		
+		artist_id = get_artist_id(self.token, self.artist_entry.get_text())
 		albums = get_albums(self.token, artist_id)
 		tracks = get_tracks(self.token, albums)
 		
 		print("Track DB Created")
 
-		generate_playlist(tracks, 10*60*1000)
+		generate_playlist(tracks, target_time*1000)
 
 		print(artist_id)
 
