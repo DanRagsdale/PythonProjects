@@ -144,9 +144,7 @@ def generate_playlist(tracks, target_time):
 			print(f"Success!!!! Target time of {target_time}, real time of {test_len}")
 			print(f"Completed in {i} iterations")
 			print()
-			for t in test_tracks:
-				print(t['name'])
-			return
+			return test_tracks
 		
 		test_index = (test_index + increment) % track_space
 
@@ -166,24 +164,35 @@ class TimerWindow(Gtk.Window):
 
 		self.token = token
 
-		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
-		self.add(vbox)
+		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
+		self.add(hbox)
 
-		self.button = Gtk.Button(label="Click Me!")
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+		self.button = Gtk.Button(label="Generate Playlist")
 		self.button.connect('clicked', self.generate_playlist)
-		vbox.pack_start(self.button, True, True, 0)
+		vbox.pack_start(self.button, False, False, 0)
 
 		self.artist_entry = Gtk.Entry()
 		self.artist_entry.set_text("Taylor Swift")
 		self.artist_entry.set_placeholder_text("Enter an Artist")
-		vbox.pack_start(self.artist_entry, True, True, 0)
+		vbox.pack_start(self.artist_entry, False, False, 0)
 
 		self.time_entry = Gtk.Entry()
 		self.time_entry.set_text("10:00")
 		self.time_entry.set_placeholder_text("Enter a duration")
-		vbox.pack_start(self.time_entry, True, True, 0)
+		vbox.pack_start(self.time_entry, False, False, 0)
+
+		hbox.pack_start(vbox, False, False, 0)
+
+		output = Gtk.TextView()
+		output.set_editable(False)
+		output.set_size_request(300,100)
+		self.output_buffer = output.get_buffer()
+		hbox.pack_start(output, True, True, 0)
 
 	def generate_playlist(self, widget):
+
 		target_time = timeparse(self.time_entry.get_text())
 		if target_time is None:
 			print("Please enter a valid time!")
@@ -195,9 +204,10 @@ class TimerWindow(Gtk.Window):
 		
 		print("Track DB Created")
 
-		generate_playlist(tracks, target_time*1000)
+		track_list = generate_playlist(tracks, target_time*1000)
 
-		print(artist_id)
+		disp_string = '\n'.join(track['name'] for track in track_list)
+		self.output_buffer.set_text(disp_string)
 
 def main():
 	token = get_token()
