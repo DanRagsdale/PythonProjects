@@ -6,10 +6,10 @@ import bisect
 import typing
 
 class Track(typing.NamedTuple): 
-	name: str
 	id: str
-	uri: str
+	name: str
 	length: int
+	uri: str
 	explicit: bool
 
 # Fetch the app info from a hidden file
@@ -92,10 +92,10 @@ def get_tracks(token, albums):
 
 			if 'commentary' not in name.lower() and 'voice memo' not in name.lower():
 				test_track = Track(
-					name = track['name'],
 					id = track['id'],
-					uri = track['uri'],
+					name = track['name'],
 					length = track['duration_ms'],
+					uri = track['uri'],
 					explicit = track['explicit'],
 				)
 				
@@ -166,6 +166,7 @@ from urllib.parse import quote
 from pytimeparse.timeparse import timeparse
 
 import sqlite3
+import time
 
 class TimerWindow(Gtk.Window):
 	def __init__(self, token, db_path):
@@ -179,7 +180,8 @@ class TimerWindow(Gtk.Window):
 
 		self.cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
 			artist_id TEXT PRIMARY KEY,
-			artist_name TEXT
+			artist_name TEXT,
+			timestamp INT
 		);""")
 
 		self.cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
@@ -198,17 +200,29 @@ class TimerWindow(Gtk.Window):
 			print("Please enter a valid time!")
 			return
 
+		# Check if the tracks for the artist have been cached. If not, get them from the Spotify API
 		artist_name = self.artist_entry.get_text()
+		cur_time = int(time.time())
 
-		artist_id = get_artist_id(self.token, artist_name)
-		self.cursor.execute(f"INSERT OR IGNORE INTO artists VALUES('{artist_name}', '{artist_id}')")		
+		cached_artist = self.cursor.execute(f"SELECT artist_id, timestamp FROM artists WHERE artist_name = '{artist_name}';").fetchone()
+		if cached_artist is None or (cur_time - cached_artist[1] > 300):
+			print("Getting new Data!!")
+			print(cached_artist)
+		
+			artist_id = get_artist_id(self.token, artist_name)
+			self.cursor.execute(f"INSERT OR REPLACE INTO artists VALUES('{artist_id}', '{artist_name}', {cur_time})")		
+			
+			albums = get_albums(self.token, artist_id)
+			tracks = get_tracks(self.token, albums)
 
-		albums = get_albums(self.token, artist_id)
-		tracks = get_tracks(self.token, albums)
+			track_data = [(t.id, artist_id, t.name, t.length, t.uri) for t in tracks]
+			self.cursor.executemany(f"INSERT OR REPLACE INTO tracks VALUES(?, ?, ?, ?, ?)", track_data)
+			self.db_connection.commit()
+		else:
+			print("Valid cache found!")
+			raw_tracks = self.cursor.execute(f"SELECT track_id, track_name, track_len, track_uri FROM tracks WHERE artist_id='{cached_artist[0]}'").fetchall()
+			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
 
-		track_data = [()]
-
-		self.db_connection.commit()
 		print("Track DB Created")
 
 		track_list = generate_playlist(tracks, target_time*1000)
