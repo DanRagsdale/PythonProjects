@@ -3,6 +3,14 @@ import base64
 import json
 import random
 import bisect
+import typing
+
+class Track(typing.NamedTuple): 
+	name: str
+	id: str
+	uri: str
+	length: int
+	explicit: bool
 
 # Fetch the app info from a hidden file
 # Use this to generate an authorization token for the spotify api
@@ -83,38 +91,37 @@ def get_tracks(token, albums):
 			name = track['name']
 
 			if 'commentary' not in name.lower() and 'voice memo' not in name.lower():
-				track_dict = {
-					'name' : track['name'],
-					'length' : track['duration_ms'],
-					'explicit' : track['explicit'],
-					'id' : track['id'],
-					'uri' : track['uri'],
-				}
-
+				test_track = Track(
+					name = track['name'],
+					id = track['id'],
+					uri = track['uri'],
+					length = track['duration_ms'],
+					explicit = track['explicit'],
+				)
+				
 				should_add = True
 				for i, t in enumerate(tracks):
-					if t['name'] == track_dict['name'] and (int(t['explicit']) >= int(track_dict['explicit'])):
+					if t.name == test_track.name and (int(t.explicit) >= int(test_track.explicit)):
 						should_add = False
 						break
-					elif t['name'] == track_dict['name']:
-						tracks[i] = track_dict
+					elif t.name == test_track.name:
+						tracks[i] = test_track
 						should_add = False
 						break
 
 				if should_add:
-					tracks.append(track_dict)
+					tracks.append(test_track)
 	return tracks
 
-
-def track_len(t):
-	return t['length']
+def track_len(track):
+	return track.length
 
 # Determine which tracks can be combined to form a correct partition
 def generate_playlist(tracks, target_time):
 	tracks.sort(key=track_len)
 
 	track_count = len(tracks)
-	med_len = (tracks[track_count // 2])['length']
+	med_len = (tracks[track_count // 2]).length
 
 	tracks_needed = target_time // med_len
 	print(f"Looking for a combination of {tracks_needed} tracks")
@@ -138,7 +145,7 @@ def generate_playlist(tracks, target_time):
 			test_tracks.append(tracks[working_val % track_count])
 			working_val //= track_count
 
-		test_len = sum([track['length'] for track in test_tracks])
+		test_len = sum([track.length for track in test_tracks])
 
 		if abs(target_time - test_len) < 1000:
 			print(f"Success!!!! Target time of {target_time}, real time of {test_len}")
@@ -158,12 +165,58 @@ from gi.repository import Gtk
 from urllib.parse import quote
 from pytimeparse.timeparse import timeparse
 
+import sqlite3
+
 class TimerWindow(Gtk.Window):
-	def __init__(self, token):
+	def __init__(self, token, db_path):
 		super().__init__(title="Hello World!")
 
 		self.token = token
+		self.build_gui()
 
+		self.db_connection = sqlite3.connect(db_path)
+		self.cursor = self.db_connection.cursor()
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
+			artist_id TEXT PRIMARY KEY,
+			artist_name TEXT
+		);""")
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
+			track_id TEXT PRIMARY KEY,
+			artist_id TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			track_len INTEGER NOT NULL,
+			track_uri TEXT NOT NULL,
+
+			FOREIGN KEY(artist_id) REFERENCES artists(artist_id)
+		);""")
+
+	def generate_playlist(self, widget):
+		target_time = timeparse(self.time_entry.get_text())
+		if target_time is None:
+			print("Please enter a valid time!")
+			return
+
+		artist_name = self.artist_entry.get_text()
+
+		artist_id = get_artist_id(self.token, artist_name)
+		self.cursor.execute(f"INSERT OR IGNORE INTO artists VALUES('{artist_name}', '{artist_id}')")		
+
+		albums = get_albums(self.token, artist_id)
+		tracks = get_tracks(self.token, albums)
+
+		track_data = [()]
+
+		self.db_connection.commit()
+		print("Track DB Created")
+
+		track_list = generate_playlist(tracks, target_time*1000)
+
+		disp_string = '\n'.join(track.name for track in track_list)
+		self.output_buffer.set_text(disp_string)
+
+	def build_gui(self):
 		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
 		self.add(hbox)
 
@@ -191,27 +244,10 @@ class TimerWindow(Gtk.Window):
 		self.output_buffer = output.get_buffer()
 		hbox.pack_start(output, True, True, 0)
 
-	def generate_playlist(self, widget):
-
-		target_time = timeparse(self.time_entry.get_text())
-		if target_time is None:
-			print("Please enter a valid time!")
-			return
-		
-		artist_id = get_artist_id(self.token, self.artist_entry.get_text())
-		albums = get_albums(self.token, artist_id)
-		tracks = get_tracks(self.token, albums)
-		
-		print("Track DB Created")
-
-		track_list = generate_playlist(tracks, target_time*1000)
-
-		disp_string = '\n'.join(track['name'] for track in track_list)
-		self.output_buffer.set_text(disp_string)
 
 def main():
 	token = get_token()
-	win = TimerWindow(token)
+	win = TimerWindow(token, 'data/timer/track_cache.db')
 	win.connect('destroy', Gtk.main_quit)
 	win.show_all()
 	Gtk.main()
