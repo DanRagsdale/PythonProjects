@@ -5,6 +5,17 @@ import random
 import bisect
 import typing
 
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+
+from urllib.parse import quote
+from pytimeparse.timeparse import timeparse
+
+import sqlite3
+import time
+
+
 class Track(typing.NamedTuple): 
 	id: str
 	name: str
@@ -74,7 +85,7 @@ def get_albums(token, artist_id):
 		offset += 50
 	return albums
 
-# Iterate through all the albums and get a list of all Taylor Swift songs
+# Iterate through all the albums and get a list of all tracks from the provided albums
 def get_tracks(token, albums):
 	tracks = []
 
@@ -116,57 +127,62 @@ def get_tracks(token, albums):
 def track_len(track):
 	return track.length
 
+# Get the difference in duration between the test_list and the target_time
+def playlist_delta(target_time, test_list):
+	test_len = sum([track.length for track in test_list])
+	return abs(target_time - test_len)
+
+
 # Determine which tracks can be combined to form a correct partition
-def generate_playlist(tracks, target_time):
+def find_playlist(tracks, target_time):
+	print()
+
 	tracks.sort(key=track_len)
 
 	track_count = len(tracks)
 	med_len = (tracks[track_count // 2]).length
 
-	tracks_needed = target_time // med_len
+	tracks_needed = max(1, target_time // med_len)
 	print(f"Looking for a combination of {tracks_needed} tracks")
-
-	random.shuffle(tracks)
 
 	# Try every combination of n tracks in a pseudo random order
 	# Return early if a given combination has a total length within an acceptable threshold
 
 	# 10007 is prime. Assuming len(tracks) is less than 10007, then 10007^n is coprime to len(tracks)^n
 	# Therefore this will step through all the combinations of songs in pseudo-random order
+	random.shuffle(tracks)
+
 	increment = 10_007**tracks_needed
 	track_space = track_count**tracks_needed
 
 	test_index = 0
 
-	for i in range(100_000):
-		test_tracks	= []
+	playlist_tests = []
+
+	for i in range(min(10_000, track_space)):
+		test_list	= []
 		working_val = test_index
 		for t in range(tracks_needed):
-			test_tracks.append(tracks[working_val % track_count])
+			test_list.append(tracks[working_val % track_count])
 			working_val //= track_count
 
-		test_len = sum([track.length for track in test_tracks])
-
-		if abs(target_time - test_len) < 1000:
-			print(f"Success!!!! Target time of {target_time}, real time of {test_len}")
+		if playlist_delta(target_time, test_list) < 1000:
 			print(f"Completed in {i} iterations")
-			print()
-			return test_tracks
-		
+			return test_list
+
+		playlist_tests.append(test_list)
 		test_index = (test_index + increment) % track_space
 
-	print("Failed :(")
-
-
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
-
-from urllib.parse import quote
-from pytimeparse.timeparse import timeparse
-
-import sqlite3
-import time
+	# Fallback if a perfect match is not found
+	print("Failed to find exact playlist. Returning best possible result.")
+	best_index = 0
+	best_delta = 100_000
+	for i, t in enumerate(playlist_tests):
+		test_delta = playlist_delta(target_time, t) 
+		if test_delta < best_delta:
+			best_index = i
+			best_delta = test_delta
+	return playlist_tests[best_index]
 
 class TimerWindow(Gtk.Window):
 	def __init__(self, token, db_path):
@@ -201,7 +217,7 @@ class TimerWindow(Gtk.Window):
 			return
 
 		# Check if the tracks for the artist have been cached. If not, get them from the Spotify API
-		artist_name = self.artist_entry.get_text()
+		artist_name = self.artist_entry.get_text().lower()
 		cur_time = int(time.time())
 
 		cached_artist = self.cursor.execute(f"SELECT artist_id, timestamp FROM artists WHERE artist_name = '{artist_name}';").fetchone()
@@ -223,9 +239,7 @@ class TimerWindow(Gtk.Window):
 			raw_tracks = self.cursor.execute(f"SELECT track_id, track_name, track_len, track_uri FROM tracks WHERE artist_id='{cached_artist[0]}'").fetchall()
 			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
 
-		print("Track DB Created")
-
-		track_list = generate_playlist(tracks, target_time*1000)
+		track_list = find_playlist(tracks, target_time*1000)
 
 		disp_string = '\n'.join(track.name for track in track_list)
 		self.output_buffer.set_text(disp_string)
@@ -258,14 +272,12 @@ class TimerWindow(Gtk.Window):
 		self.output_buffer = output.get_buffer()
 		hbox.pack_start(output, True, True, 0)
 
-
 def main():
 	token = get_token()
 	win = TimerWindow(token, 'data/timer/track_cache.db')
 	win.connect('destroy', Gtk.main_quit)
 	win.show_all()
 	Gtk.main()
-
 
 
 if __name__ == '__main__':
