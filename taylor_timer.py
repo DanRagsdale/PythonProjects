@@ -23,9 +23,30 @@ class Track(typing.NamedTuple):
 	uri: str
 	explicit: bool
 
+from bottle import Bottle, run, route, request
+app = Bottle()
+
+code = None
+
+@app.route('/callback')
+def test_listener():
+	global code
+
+	print("Callback called")
+	data = request.query['code']
+	code = data
+	print(f'data: {data}')
+
+import threading
+def run_server():
+	run(app, host='127.0.0.1', port=8888)
+
+test_thread = threading.Thread(target=run_server, name='server')
+test_thread.start()
+
 # Fetch the app info from a hidden file
 # Use this to generate an authorization token for the spotify api
-def get_token():
+def get_token_no_user():
 	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
 
 	with open(client_info_loc, 'r') as auth_file:
@@ -48,6 +69,49 @@ def get_token():
 		exit()
 
 	token = response.json()['access_token']
+	return token
+
+import webbrowser
+
+
+def get_token():
+	global code
+
+	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
+
+	with open(client_info_loc, 'r') as auth_file:
+		auth_json = json.loads(auth_file.read())
+		client_id = auth_json['client_id']
+		client_secret = auth_json['client_secret']
+
+	webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:8888/callback')
+
+	while code is None:
+		pass
+
+	print(f"Code found: {code}")
+	
+	auth_url = 'https://accounts.spotify.com/api/token'
+	header_obj = { 
+		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
+		'Content-Type': 'application/x-www-form-urlencoded',
+	}
+	data_obj = {
+		'grant_type' : 'authorization_code',
+		'code' : code,
+		'redirect_uri' : 'http://localhost:8888/callback'
+	}
+
+	response = requests.post(auth_url, headers = header_obj, data = data_obj)
+
+	if response.status_code != 200:
+		print(response)
+		print(response.json())
+		exit()
+
+	token = response.json()['access_token']
+
+	print("Successfully found token!!!")
 	return token
 
 def get_artist_id(token, search_string):
