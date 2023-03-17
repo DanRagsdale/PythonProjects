@@ -32,10 +32,8 @@ code = None
 def test_listener():
 	global code
 
-	print("Callback called")
 	data = request.query['code']
 	code = data
-	print(f'data: {data}')
 
 import threading
 def run_server():
@@ -84,13 +82,11 @@ def get_token():
 		client_id = auth_json['client_id']
 		client_secret = auth_json['client_secret']
 
-	webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:8888/callback')
+	webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:8888/callback&scope=user-modify-playback-state')
 
 	while code is None:
 		pass
 
-	print(f"Code found: {code}")
-	
 	auth_url = 'https://accounts.spotify.com/api/token'
 	header_obj = { 
 		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
@@ -108,6 +104,8 @@ def get_token():
 		print(response)
 		print(response.json())
 		exit()
+
+	print(response.json())
 
 	token = response.json()['access_token']
 
@@ -187,6 +185,15 @@ def get_tracks(token, albums):
 				if should_add:
 					tracks.append(test_track)
 	return tracks
+
+def add_to_queue(token, track):
+	queue_url = f'https://api.spotify.com/v1/me/player/queue?uri={track.uri}'
+	header_obj = { 
+		'Authorization': 'Authorization: Bearer ' + token,
+		'Content-Type': 'application/json',
+	}
+
+	response = requests.post(queue_url, headers = header_obj)
 
 def track_len(track):
 	return track.length
@@ -285,7 +292,7 @@ class TimerWindow(Gtk.Window):
 		cur_time = int(time.time())
 
 		cached_artist = self.cursor.execute(f"SELECT artist_id, timestamp FROM artists WHERE artist_name = '{artist_name}';").fetchone()
-		if cached_artist is None or (cur_time - cached_artist[1] > 300):
+		if cached_artist is None or (cur_time - cached_artist[1] > 3600):
 			print("Getting new Data!!")
 			print(cached_artist)
 		
@@ -304,6 +311,9 @@ class TimerWindow(Gtk.Window):
 			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
 
 		track_list = find_playlist(tracks, target_time*1000)
+
+		for track in track_list:
+			add_to_queue(self.token, track)
 
 		disp_string = '\n'.join(track.name for track in track_list)
 		self.output_buffer.set_text(disp_string)
