@@ -4,6 +4,7 @@ import json
 import random
 import bisect
 import typing
+import threading
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -15,6 +16,8 @@ from pytimeparse.timeparse import timeparse
 import sqlite3
 import time
 
+from bottle import Bottle, run, route, request
+import webbrowser
 
 class Track(typing.NamedTuple): 
 	id: str
@@ -23,28 +26,18 @@ class Track(typing.NamedTuple):
 	uri: str
 	explicit: bool
 
-from bottle import Bottle, run, route, request
-app = Bottle()
+class Token(typing.NamedTuple):
+	token: str
+	has_user: bool
 
-code = None
-
-@app.route('/callback')
-def test_listener():
-	global code
-
-	data = request.query['code']
-	code = data
-
-import threading
-def run_server():
-	run(app, host='127.0.0.1', port=8888)
-
-test_thread = threading.Thread(target=run_server, name='server')
-test_thread.start()
+auth_token = None
 
 # Fetch the app info from a hidden file
 # Use this to generate an authorization token for the spotify api
-def get_token_no_user():
+# Token is not associated with a user so it is not possible to add songs to the queue
+def request_token_no_user():
+	global auth_token
+
 	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
 
 	with open(client_info_loc, 'r') as auth_file:
@@ -66,14 +59,15 @@ def get_token_no_user():
 	if response.status_code != 200:
 		exit()
 
-	token = response.json()['access_token']
-	return token
+	auth_token = Token(
+		token = response.json()['access_token'],
+		has_user = False
+	)
 
-import webbrowser
-
-
-def get_token():
-	global code
+# Requests an authorization token from the Spotify API
+# Once the user accepts the authorization, a callback triggers the token generation process
+def request_token():
+	global auth_code
 
 	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
 
@@ -83,34 +77,6 @@ def get_token():
 		client_secret = auth_json['client_secret']
 
 	webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:8888/callback&scope=user-modify-playback-state')
-
-	while code is None:
-		pass
-
-	auth_url = 'https://accounts.spotify.com/api/token'
-	header_obj = { 
-		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
-		'Content-Type': 'application/x-www-form-urlencoded',
-	}
-	data_obj = {
-		'grant_type' : 'authorization_code',
-		'code' : code,
-		'redirect_uri' : 'http://localhost:8888/callback'
-	}
-
-	response = requests.post(auth_url, headers = header_obj, data = data_obj)
-
-	if response.status_code != 200:
-		print(response)
-		print(response.json())
-		exit()
-
-	print(response.json())
-
-	token = response.json()['access_token']
-
-	print("Successfully found token!!!")
-	return token
 
 def get_artist_id(token, search_string):
 	query = quote(search_string)
@@ -129,7 +95,7 @@ def get_albums(token, artist_id):
 
 	offset = 0
 	while True:
-		artists_album_url = f'https://api.spotify.com/v1/artists/{artist_id}/albums?include_groups=album&market=US&limit=50&offset={offset}'
+		artists_album_url = f'https://api.spotify.com/v1/artists/{artist_id}/albums?include_groups=album,single&market=US&limit=50&offset={offset}'
 		header_obj = {
 			'Authorization': 'Authorization: Bearer ' + token
 		}
@@ -186,6 +152,7 @@ def get_tracks(token, albums):
 					tracks.append(test_track)
 	return tracks
 
+# Use the Spotify API to add the specified track to the user's play queue
 def add_to_queue(token, track):
 	queue_url = f'https://api.spotify.com/v1/me/player/queue?uri={track.uri}'
 	header_obj = { 
@@ -202,7 +169,6 @@ def track_len(track):
 def playlist_delta(target_time, test_list):
 	test_len = sum([track.length for track in test_list])
 	return abs(target_time - test_len)
-
 
 # Determine which tracks can be combined to form a correct partition
 def find_playlist(tracks, target_time):
@@ -256,10 +222,8 @@ def find_playlist(tracks, target_time):
 	return playlist_tests[best_index]
 
 class TimerWindow(Gtk.Window):
-	def __init__(self, token, db_path):
+	def __init__(self, db_path):
 		super().__init__(title="Hello World!")
-
-		self.token = token
 		self.build_gui()
 
 		self.db_connection = sqlite3.connect(db_path)
@@ -282,6 +246,12 @@ class TimerWindow(Gtk.Window):
 		);""")
 
 	def generate_playlist(self, widget):
+		global auth_token
+
+		if auth_token is None:
+			print("Waiting to create authentication token.")
+			return
+
 		target_time = timeparse(self.time_entry.get_text())
 		if target_time is None:
 			print("Please enter a valid time!")
@@ -294,13 +264,12 @@ class TimerWindow(Gtk.Window):
 		cached_artist = self.cursor.execute(f"SELECT artist_id, timestamp FROM artists WHERE artist_name = '{artist_name}';").fetchone()
 		if cached_artist is None or (cur_time - cached_artist[1] > 3600):
 			print("Getting new Data!!")
-			print(cached_artist)
 		
-			artist_id = get_artist_id(self.token, artist_name)
+			artist_id = get_artist_id(auth_token.token, artist_name)
 			self.cursor.execute(f"INSERT OR REPLACE INTO artists VALUES('{artist_id}', '{artist_name}', {cur_time})")		
 			
-			albums = get_albums(self.token, artist_id)
-			tracks = get_tracks(self.token, albums)
+			albums = get_albums(auth_token.token, artist_id)
+			tracks = get_tracks(auth_token.token, albums)
 
 			track_data = [(t.id, artist_id, t.name, t.length, t.uri) for t in tracks]
 			self.cursor.executemany(f"INSERT OR REPLACE INTO tracks VALUES(?, ?, ?, ?, ?)", track_data)
@@ -312,11 +281,14 @@ class TimerWindow(Gtk.Window):
 
 		track_list = find_playlist(tracks, target_time*1000)
 
-		for track in track_list:
-			add_to_queue(self.token, track)
-
+		# Display the playlist in the app window
 		disp_string = '\n'.join(track.name for track in track_list)
 		self.output_buffer.set_text(disp_string)
+
+		# Add the playlist to the user's Spotify Queue
+		if auth_token.has_user:
+			for track in track_list:
+				add_to_queue(auth_token.token, track)
 
 	def build_gui(self):
 		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
@@ -346,9 +318,57 @@ class TimerWindow(Gtk.Window):
 		self.output_buffer = output.get_buffer()
 		hbox.pack_start(output, True, True, 0)
 
+# The server used to receive callbacks from the Spotify API
+app = Bottle()
+
+@app.route('/callback')
+def auth_callback_listener():
+	global auth_token
+	
+	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
+
+	with open(client_info_loc, 'r') as auth_file:
+		auth_json = json.loads(auth_file.read())
+		client_id = auth_json['client_id']
+		client_secret = auth_json['client_secret']
+
+	print("Callback signled")
+
+	auth_code = request.query['code']
+	
+	auth_url = 'https://accounts.spotify.com/api/token'
+	header_obj = { 
+		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
+		'Content-Type': 'application/x-www-form-urlencoded',
+	}
+	data_obj = {
+		'grant_type' : 'authorization_code',
+		'code' : auth_code,
+		'redirect_uri' : 'http://localhost:8888/callback'
+	}
+
+	response = requests.post(auth_url, headers = header_obj, data = data_obj)
+
+	if response.status_code != 200:
+		print(response)
+		print(response.json())
+		exit()
+
+	auth_token = Token(
+		token = response.json()['access_token'],
+		has_user = True
+	)
+
+def run_server():
+	run(app, host='127.0.0.1', port=8888)
+
 def main():
-	token = get_token()
-	win = TimerWindow(token, 'data/timer/track_cache.db')
+	server_thread = threading.Thread(target=run_server, name='server')
+	server_thread.daemon = True
+	server_thread.start()
+
+	request_token()
+	win = TimerWindow('data/timer/track_cache.db')
 	win.connect('destroy', Gtk.main_quit)
 	win.show_all()
 	Gtk.main()
