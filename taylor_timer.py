@@ -29,8 +29,40 @@ class Track(typing.NamedTuple):
 class Token(typing.NamedTuple):
 	token: str
 	has_user: bool
+	valid_until: int
 
 auth_token = None
+
+# Create/ Load the cache database from a file
+# If needed, create the necessary database structure
+def build_db(db_path):
+	db_connection = sqlite3.connect(db_path)
+	cursor = db_connection.cursor()
+
+	cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
+		artist_id TEXT PRIMARY KEY,
+		artist_name TEXT,
+		valid_until INT
+	);""")
+
+	cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
+		track_id TEXT PRIMARY KEY,
+		artist_id TEXT NOT NULL,
+		track_name TEXT NOT NULL,
+		track_len INTEGER NOT NULL,
+		track_uri TEXT NOT NULL,
+
+		FOREIGN KEY(artist_id) REFERENCES artists(artist_id)
+	);""")
+
+	cursor.execute("""CREATE TABLE IF NOT EXISTS tokens(
+		token_id INT PRIMARY KEY,
+		token_val TEXT NOT NULL,
+		has_user INT,
+		valid_until INT	
+	);""")
+
+	return db_connection
 
 # Fetch the app info from a hidden file
 # Use this to generate an authorization token for the spotify api
@@ -78,6 +110,82 @@ def request_token():
 
 	webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:8888/callback&scope=user-modify-playback-state')
 
+# Check the database and see if there is a valid cached token
+# If there is, use it. Otherwise, request a new token from the Spotify API
+def request_token_with_cache(db_connection):
+	global auth_token
+	cursor = db_connection.cursor()
+	
+	cached_token = cursor.execute("SELECT token_val, has_user, valid_until FROM tokens;").fetchone()
+	if cached_token is None or time.time() > cached_token[2]:
+		request_token()
+		return
+
+	print("Token retrieved from cache!!!!")
+
+	auth_token = Token(
+		token = cached_token[0],
+		has_user = cached_token[1],
+		valid_until = cached_token[2],
+	)
+
+# Store the current auth_token in the cache database
+# Runs when the app is closed
+def store_token(db, _):
+	print("End function connected")
+
+	if auth_token is not None:
+		db.cursor().execute("INSERT OR REPLACE INTO tokens VALUES(0, ?, ?, ?);", auth_token)
+		db.commit()
+
+# The server used to receive callbacks from the Spotify API
+app = Bottle()
+
+# Receive the token callback from the Spotify API and use it to generate the current auth token
+@app.route('/callback')
+def auth_callback_listener():
+	global auth_token
+	
+	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
+
+	with open(client_info_loc, 'r') as auth_file:
+		auth_json = json.loads(auth_file.read())
+		client_id = auth_json['client_id']
+		client_secret = auth_json['client_secret']
+
+	print("Callback signled")
+
+	auth_code = request.query['code']
+	
+	auth_url = 'https://accounts.spotify.com/api/token'
+	header_obj = { 
+		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
+		'Content-Type': 'application/x-www-form-urlencoded',
+	}
+	data_obj = {
+		'grant_type' : 'authorization_code',
+		'code' : auth_code,
+		'redirect_uri' : 'http://localhost:8888/callback'
+	}
+
+	response = requests.post(auth_url, headers = header_obj, data = data_obj)
+
+	if response.status_code != 200:
+		print(response)
+		print(response.json())
+		exit()
+
+	auth_token = Token(
+		token = response.json()['access_token'],
+		has_user = True,
+		valid_until = time.time() + response.json()['expires_in'],
+	)
+
+def start_listener():
+	run(app, host='127.0.0.1', port=8888)
+
+
+# Get the Spotify artist_id of the first artist who appears when searching with the provided string
 def get_artist_id(token, search_string):
 	query = quote(search_string)
 	search_url = f'https://api.spotify.com/v1/search?q={query}&type=artist&limit=1'
@@ -152,6 +260,7 @@ def get_tracks(token, albums):
 					tracks.append(test_track)
 	return tracks
 
+
 # Use the Spotify API to add the specified track to the user's play queue
 def add_to_queue(token, track):
 	queue_url = f'https://api.spotify.com/v1/me/player/queue?uri={track.uri}'
@@ -221,73 +330,13 @@ def find_playlist(tracks, target_time):
 			best_delta = test_delta
 	return playlist_tests[best_index]
 
-# The server used to receive callbacks from the Spotify API
-app = Bottle()
-
-@app.route('/callback')
-def auth_callback_listener():
-	global auth_token
-	
-	client_info_loc = '/home/daniel/Development/tokens/SpotifyIDs.json'
-
-	with open(client_info_loc, 'r') as auth_file:
-		auth_json = json.loads(auth_file.read())
-		client_id = auth_json['client_id']
-		client_secret = auth_json['client_secret']
-
-	print("Callback signled")
-
-	auth_code = request.query['code']
-	
-	auth_url = 'https://accounts.spotify.com/api/token'
-	header_obj = { 
-		'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('ascii')).decode('ascii'),
-		'Content-Type': 'application/x-www-form-urlencoded',
-	}
-	data_obj = {
-		'grant_type' : 'authorization_code',
-		'code' : auth_code,
-		'redirect_uri' : 'http://localhost:8888/callback'
-	}
-
-	response = requests.post(auth_url, headers = header_obj, data = data_obj)
-
-	if response.status_code != 200:
-		print(response)
-		print(response.json())
-		exit()
-
-	auth_token = Token(
-		token = response.json()['access_token'],
-		has_user = True
-	)
-
-def run_server():
-	run(app, host='127.0.0.1', port=8888)
-
 class TimerWindow(Gtk.Window):
-	def __init__(self, db_path):
-		super().__init__(title="Hello World!")
+	def __init__(self, db_connection):
+		super().__init__(title="Taylor Timer")
 		self.build_gui()
 
-		self.db_connection = sqlite3.connect(db_path)
+		self.db_connection = db_connection
 		self.cursor = self.db_connection.cursor()
-
-		self.cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
-			artist_id TEXT PRIMARY KEY,
-			artist_name TEXT,
-			timestamp INT
-		);""")
-
-		self.cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
-			track_id TEXT PRIMARY KEY,
-			artist_id TEXT NOT NULL,
-			track_name TEXT NOT NULL,
-			track_len INTEGER NOT NULL,
-			track_uri TEXT NOT NULL,
-
-			FOREIGN KEY(artist_id) REFERENCES artists(artist_id)
-		);""")
 
 	def generate_playlist(self, widget):
 		global auth_token
@@ -298,20 +347,19 @@ class TimerWindow(Gtk.Window):
 
 		target_time = timeparse(self.time_entry.get_text())
 		if target_time is None:
-			print("Please enter a valid time!")
+			print("Please enter a valid duration!")
 			return
 
 		# Check if the tracks for the artist have been cached. If not, get them from the Spotify API
 		artist_name = self.artist_entry.get_text().lower()
-		cur_time = int(time.time())
 
-		cached_artist = self.cursor.execute("SELECT artist_id, timestamp FROM artists WHERE artist_name = ?;", (artist_name,)).fetchone()
-		if cached_artist is None or (cur_time - cached_artist[1] > 3600):
-			print("Getting new Data!!")
+		cached_artist = self.cursor.execute("SELECT artist_id, valid_until FROM artists WHERE artist_name = ?;", (artist_name,)).fetchone()
+		if cached_artist is None or time.time() > cached_artist[1]:
+			print("Getting new track data!!")
 			print(cached_artist)
 		
 			artist_id = get_artist_id(auth_token.token, artist_name)
-			self.cursor.execute("INSERT OR REPLACE INTO artists VALUES(?, ?, ?);", (artist_id, artist_name, cur_time,))		
+			self.cursor.execute("INSERT OR REPLACE INTO artists VALUES(?, ?, ?);", (artist_id, artist_name, time.time() + 24*60*60,))		
 			
 			albums = get_albums(auth_token.token, artist_id)
 			tracks = get_tracks(auth_token.token, albums)
@@ -320,7 +368,7 @@ class TimerWindow(Gtk.Window):
 			self.cursor.executemany("INSERT OR REPLACE INTO tracks VALUES(?, ?, ?, ?, ?);", track_data)
 			self.db_connection.commit()
 		else:
-			print("Valid cache found!")
+			print("Valid track cache found!")
 			raw_tracks = self.cursor.execute("SELECT track_id, track_name, track_len, track_uri FROM tracks WHERE artist_id = ?;", (cached_artist[0],)).fetchall()
 			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
 
@@ -364,16 +412,17 @@ class TimerWindow(Gtk.Window):
 		hbox.pack_start(output, True, True, 0)
 
 def main():
-	server_thread = threading.Thread(target=run_server, name='server')
+	server_thread = threading.Thread(target=start_listener, name='server')
 	server_thread.daemon = True
 	server_thread.start()
 
-	request_token()
-	win = TimerWindow('data/timer/track_cache.db')
+	db = build_db('data/timer/track_cache.db')
+	request_token_with_cache(db)
+	win = TimerWindow(db)
 	win.connect('destroy', Gtk.main_quit)
+	win.connect('destroy', lambda x: store_token(db, x))
 	win.show_all()
 	Gtk.main()
-
 
 if __name__ == '__main__':
 	main()
