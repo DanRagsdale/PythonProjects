@@ -330,6 +330,7 @@ def find_playlist(tracks, target_time):
 			best_delta = test_delta
 	return playlist_tests[best_index]
 
+
 class TimerWindow(Gtk.Window):
 	def __init__(self, db_connection):
 		super().__init__(title="Taylor Timer")
@@ -383,6 +384,15 @@ class TimerWindow(Gtk.Window):
 			for track in track_list:
 				add_to_queue(auth_token.token, track)
 
+			if self.alarm_select.get_active():
+				add_to_queue(auth_token.token, Track(
+					id = '1hy7FfhaIcw4FjA9ZaE1Am',
+					name = "Alarm Clock Beep",
+					length = -1,
+					uri = 'spotify:track:1hy7FfhaIcw4FjA9ZaE1Am',
+					explicit = True,
+				))
+
 	def build_gui(self):
 		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
 		self.add(hbox)
@@ -402,6 +412,12 @@ class TimerWindow(Gtk.Window):
 		self.time_entry.set_text("10:00")
 		self.time_entry.set_placeholder_text("Enter a duration")
 		vbox.pack_start(self.time_entry, False, False, 0)
+
+		self.alarm_select = Gtk.ComboBoxText()
+		self.alarm_select.append_text("None")
+		self.alarm_select.append_text("Alarm Clock")
+		self.alarm_select.set_active(0)
+		vbox.pack_start(self.alarm_select, False, False, 0)
 
 		hbox.pack_start(vbox, False, False, 0)
 
