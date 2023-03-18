@@ -221,103 +221,6 @@ def find_playlist(tracks, target_time):
 			best_delta = test_delta
 	return playlist_tests[best_index]
 
-class TimerWindow(Gtk.Window):
-	def __init__(self, db_path):
-		super().__init__(title="Hello World!")
-		self.build_gui()
-
-		self.db_connection = sqlite3.connect(db_path)
-		self.cursor = self.db_connection.cursor()
-
-		self.cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
-			artist_id TEXT PRIMARY KEY,
-			artist_name TEXT,
-			timestamp INT
-		);""")
-
-		self.cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
-			track_id TEXT PRIMARY KEY,
-			artist_id TEXT NOT NULL,
-			track_name TEXT NOT NULL,
-			track_len INTEGER NOT NULL,
-			track_uri TEXT NOT NULL,
-
-			FOREIGN KEY(artist_id) REFERENCES artists(artist_id)
-		);""")
-
-	def generate_playlist(self, widget):
-		global auth_token
-
-		if auth_token is None:
-			print("Waiting to create authentication token.")
-			return
-
-		target_time = timeparse(self.time_entry.get_text())
-		if target_time is None:
-			print("Please enter a valid time!")
-			return
-
-		# Check if the tracks for the artist have been cached. If not, get them from the Spotify API
-		artist_name = self.artist_entry.get_text().lower()
-		cur_time = int(time.time())
-
-		cached_artist = self.cursor.execute(f"SELECT artist_id, timestamp FROM artists WHERE artist_name = '{artist_name}';").fetchone()
-		if cached_artist is None or (cur_time - cached_artist[1] > 3600):
-			print("Getting new Data!!")
-		
-			artist_id = get_artist_id(auth_token.token, artist_name)
-			self.cursor.execute(f"INSERT OR REPLACE INTO artists VALUES('{artist_id}', '{artist_name}', {cur_time})")		
-			
-			albums = get_albums(auth_token.token, artist_id)
-			tracks = get_tracks(auth_token.token, albums)
-
-			track_data = [(t.id, artist_id, t.name, t.length, t.uri) for t in tracks]
-			self.cursor.executemany(f"INSERT OR REPLACE INTO tracks VALUES(?, ?, ?, ?, ?)", track_data)
-			self.db_connection.commit()
-		else:
-			print("Valid cache found!")
-			raw_tracks = self.cursor.execute(f"SELECT track_id, track_name, track_len, track_uri FROM tracks WHERE artist_id='{cached_artist[0]}'").fetchall()
-			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
-
-		track_list = find_playlist(tracks, target_time*1000)
-
-		# Display the playlist in the app window
-		disp_string = '\n'.join(track.name for track in track_list)
-		self.output_buffer.set_text(disp_string)
-
-		# Add the playlist to the user's Spotify Queue
-		if auth_token.has_user:
-			for track in track_list:
-				add_to_queue(auth_token.token, track)
-
-	def build_gui(self):
-		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
-		self.add(hbox)
-
-		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-
-		self.button = Gtk.Button(label="Generate Playlist")
-		self.button.connect('clicked', self.generate_playlist)
-		vbox.pack_start(self.button, False, False, 0)
-
-		self.artist_entry = Gtk.Entry()
-		self.artist_entry.set_text("Taylor Swift")
-		self.artist_entry.set_placeholder_text("Enter an Artist")
-		vbox.pack_start(self.artist_entry, False, False, 0)
-
-		self.time_entry = Gtk.Entry()
-		self.time_entry.set_text("10:00")
-		self.time_entry.set_placeholder_text("Enter a duration")
-		vbox.pack_start(self.time_entry, False, False, 0)
-
-		hbox.pack_start(vbox, False, False, 0)
-
-		output = Gtk.TextView()
-		output.set_editable(False)
-		output.set_size_request(300,100)
-		self.output_buffer = output.get_buffer()
-		hbox.pack_start(output, True, True, 0)
-
 # The server used to receive callbacks from the Spotify API
 app = Bottle()
 
@@ -361,6 +264,104 @@ def auth_callback_listener():
 
 def run_server():
 	run(app, host='127.0.0.1', port=8888)
+
+class TimerWindow(Gtk.Window):
+	def __init__(self, db_path):
+		super().__init__(title="Hello World!")
+		self.build_gui()
+
+		self.db_connection = sqlite3.connect(db_path)
+		self.cursor = self.db_connection.cursor()
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS artists(
+			artist_id TEXT PRIMARY KEY,
+			artist_name TEXT,
+			timestamp INT
+		);""")
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS tracks(
+			track_id TEXT PRIMARY KEY,
+			artist_id TEXT NOT NULL,
+			track_name TEXT NOT NULL,
+			track_len INTEGER NOT NULL,
+			track_uri TEXT NOT NULL,
+
+			FOREIGN KEY(artist_id) REFERENCES artists(artist_id)
+		);""")
+
+	def generate_playlist(self, widget):
+		global auth_token
+
+		if auth_token is None:
+			print("Waiting to create authentication token.")
+			return
+
+		target_time = timeparse(self.time_entry.get_text())
+		if target_time is None:
+			print("Please enter a valid time!")
+			return
+
+		# Check if the tracks for the artist have been cached. If not, get them from the Spotify API
+		artist_name = self.artist_entry.get_text().lower()
+		cur_time = int(time.time())
+
+		cached_artist = self.cursor.execute("SELECT artist_id, timestamp FROM artists WHERE artist_name = ?;", (artist_name,)).fetchone()
+		if cached_artist is None or (cur_time - cached_artist[1] > 3600):
+			print("Getting new Data!!")
+			print(cached_artist)
+		
+			artist_id = get_artist_id(auth_token.token, artist_name)
+			self.cursor.execute("INSERT OR REPLACE INTO artists VALUES(?, ?, ?);", (artist_id, artist_name, cur_time,))		
+			
+			albums = get_albums(auth_token.token, artist_id)
+			tracks = get_tracks(auth_token.token, albums)
+
+			track_data = [(t.id, artist_id, t.name, t.length, t.uri) for t in tracks]
+			self.cursor.executemany("INSERT OR REPLACE INTO tracks VALUES(?, ?, ?, ?, ?);", track_data)
+			self.db_connection.commit()
+		else:
+			print("Valid cache found!")
+			raw_tracks = self.cursor.execute("SELECT track_id, track_name, track_len, track_uri FROM tracks WHERE artist_id = ?;", (cached_artist[0],)).fetchall()
+			tracks = [Track(id=t[0], name=t[1], length=t[2], uri=t[3], explicit=True) for t in raw_tracks]
+
+		track_list = find_playlist(tracks, target_time*1000)
+
+		# Display the playlist in the app window
+		disp_string = '\n'.join(track.name for track in track_list)
+		self.output_buffer.set_text(disp_string)
+
+		# Add the playlist to the user's Spotify Queue
+		if auth_token.has_user:
+			for track in track_list:
+				add_to_queue(auth_token.token, track)
+
+	def build_gui(self):
+		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
+		self.add(hbox)
+
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+		self.button = Gtk.Button(label="Generate Playlist")
+		self.button.connect('clicked', self.generate_playlist)
+		vbox.pack_start(self.button, False, False, 0)
+
+		self.artist_entry = Gtk.Entry()
+		self.artist_entry.set_text("Taylor Swift")
+		self.artist_entry.set_placeholder_text("Enter an Artist")
+		vbox.pack_start(self.artist_entry, False, False, 0)
+
+		self.time_entry = Gtk.Entry()
+		self.time_entry.set_text("10:00")
+		self.time_entry.set_placeholder_text("Enter a duration")
+		vbox.pack_start(self.time_entry, False, False, 0)
+
+		hbox.pack_start(vbox, False, False, 0)
+
+		output = Gtk.TextView()
+		output.set_editable(False)
+		output.set_size_request(300,100)
+		self.output_buffer = output.get_buffer()
+		hbox.pack_start(output, True, True, 0)
 
 def main():
 	server_thread = threading.Thread(target=run_server, name='server')
