@@ -57,11 +57,29 @@ with open (FOLDER_LOCATION + '/' + FILE_NAME, 'a+', newline='\n') as csvfile :
 while True:
 	print_list()
 	print()
-	x = input("Please enter a command\n")
+	x = input("Please enter a command (or 'help')\n")
 	com = shlex.split(x)
 
 	if len(com) > 0 and com[0].lower() == 'x':
 		exit()
+
+	if len(com) > 0 and com[0].lower() == 'help':
+		os.system('cls||clear')
+		print("Super Simple Planner")
+		print()
+
+		print("Commands are:")
+		print("add [TASK NAME]")
+		print("add [TASK NAME] [DESCRIPTION]")
+		print("del [TASK ID]")
+		print("del [TASK NAME]")
+		print("toggle [TASK ID]")
+		print("toggle [TASK NAME]")
+		print("x")
+		print()
+
+		while input("Press Enter to return") is None:
+			pass
 
 	if len(com) == 2 and com[0].lower() == 'add':
 		plannerList.append({STATUS:"FALSE", NAME:com[1], DESCRIPTION:""})
@@ -72,7 +90,7 @@ while True:
 		if com[1].isdigit():
 			plannerList.pop(int(com[1]))
 		else:
-			plannerList = [x for x in plannerList if not x[NAME] == com[1]]
+			plannerList = [x for x in plannerList if x[NAME] != com[1]]
 			
 
 	if len(com) == 2 and com[0].lower() == 'toggle':
