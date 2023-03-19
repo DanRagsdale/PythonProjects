@@ -332,6 +332,27 @@ def find_playlist(tracks, target_time):
 
 
 class TimerWindow(Gtk.Window):
+	alarm_sounds = [
+		Track(
+			id = '1hy7FfhaIcw4FjA9ZaE1Am',
+			name = "Alarm Clock Beep",
+			length = -1,
+			uri = 'spotify:track:1hy7FfhaIcw4FjA9ZaE1Am',
+			explicit = True,),
+		Track(
+			id = '7BbZ3MabL1hA1hBrfSbbvq',
+			name = "Analog Alarm Clock",
+			length = -1,
+			uri = 'spotify:track:7BbZ3MabL1hA1hBrfSbbvq',
+			explicit = True,),
+		Track(
+			id = '1MwqnYOI85DIVejMl0UHhn',
+			name = "Nature Sounds",
+			length = -1,
+			uri = 'spotify:track:1MwqnYOI85DIVejMl0UHhn',
+			explicit = True,),
+	]
+
 	def __init__(self, db_connection):
 		super().__init__(title="Taylor Timer")
 		self.build_gui()
@@ -384,14 +405,9 @@ class TimerWindow(Gtk.Window):
 			for track in track_list:
 				add_to_queue(auth_token.token, track)
 
-			if self.alarm_select.get_active():
-				add_to_queue(auth_token.token, Track(
-					id = '1hy7FfhaIcw4FjA9ZaE1Am',
-					name = "Alarm Clock Beep",
-					length = -1,
-					uri = 'spotify:track:1hy7FfhaIcw4FjA9ZaE1Am',
-					explicit = True,
-				))
+			alarm_sound = self.alarm_select.get_active()
+			if alarm_sound:
+				add_to_queue(auth_token.token, self.alarm_sounds[alarm_sound - 1])
 
 	def build_gui(self):
 		hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, margin=6)
@@ -415,7 +431,8 @@ class TimerWindow(Gtk.Window):
 
 		self.alarm_select = Gtk.ComboBoxText()
 		self.alarm_select.append_text("None")
-		self.alarm_select.append_text("Alarm Clock")
+		for track in self.alarm_sounds:
+			self.alarm_select.append_text(track.name)
 		self.alarm_select.set_active(0)
 		vbox.pack_start(self.alarm_select, False, False, 0)
 
