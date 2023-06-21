@@ -1,7 +1,7 @@
 # Util library to handle backend data gathering, parsing, and caching from alltime-athletics.com
 #
 # Data is stored as such:
-# (time: float, name: string, country: string, place: string, date: string)
+# (distance: int, time: float, name: string, country: string, place: string, date: string)
 
 from collections import namedtuple
 import time
@@ -14,24 +14,31 @@ from bs4 import BeautifulSoup
 import sqlite3
 
 Event = namedtuple("Event", "name distance url")
-
-Canonical_Events = [
-	Event("1500", 1500, "http://www.alltime-athletics.com/m_1500ok.htm"),
-	Event("5000", 5_000, "http://www.alltime-athletics.com/m_5000ok.htm"),
-	Event("10000", 10_000, "http://www.alltime-athletics.com/m_10kok.htm"),
-	Event("Half Marathon", 21_098, "http://www.alltime-athletics.com/mhmaraok.htm"),
-	Event("Marathon", 42_195, "http://www.alltime-athletics.com/mmaraok.htm")
-	]
-
 Result = namedtuple("Result", "time name country place date")
+
+RUNNER_DB_PATH = 'data/runners/result_cache.db'
+
+EVENT_1500 = Event("1500", 1500, "http://www.alltime-athletics.com/m_1500ok.htm")
+EVENT_5000 = Event("5000", 5_000, "http://www.alltime-athletics.com/m_5000ok.htm")
+EVENT_10000 = Event("10000", 10_000, "http://www.alltime-athletics.com/m_10kok.htm")
+EVENT_HALF = Event("Half Marathon", 21_098, "http://www.alltime-athletics.com/mhmaraok.htm")
+EVENT_FULL = Event("Marathon", 42_195, "http://www.alltime-athletics.com/mmaraok.htm")
+
+# The events which, by default, this util will download
+CANONICAL_EVENTS = [
+	EVENT_1500,
+	EVENT_5000,
+	EVENT_10000,
+	EVENT_HALF,
+	EVENT_FULL,
+	]
 
 # Create/ Load the cache database from a file
 # If needed, create the necessary database structure
 def build_db(db_path):
 	db_connection = sqlite3.connect(db_path)
-	cursor = db_connection.cursor()
 
-	cursor.execute("""CREATE TABLE IF NOT EXISTS results(
+	db_connection.execute("""CREATE TABLE IF NOT EXISTS results(
 		result_id INTEGER PRIMARY KEY AUTOINCREMENT,
 		valid_until INT, 
 		distance INT,
@@ -47,20 +54,18 @@ def build_db(db_path):
 # Check if the cached results are still valid.
 # If not, clear them from the datatbase
 def cache_is_valid(db_connection):
-	cursor = db_connection.cursor()
-	cached_results = cursor.execute("SELECT valid_until FROM results;", ()).fetchone()
+	cached_results = db_connection.execute("SELECT valid_until FROM results;", ()).fetchone()
 	if cached_results is None or time.time() > cached_results[0]:
-		cursor.execute("DELETE FROM results;")
+		db_connection.execute("DELETE FROM results;")
 		db_connection.commit()
 		return False
 	return True
 
 # Get data from alltime-athletics for the given events.
 # lifespan denotes how long, in seconds, the cache will stay valid
-def get_results(db_connection, events, lifespan):
+def download_results(db_connection, events, lifespan):
 	time_multipliers = [0.01, 1, 60, 3600]
 
-	cursor = db_connection.cursor()
 	for event in events:
 		print("Compiling results for " + event.name)
 
@@ -104,20 +109,31 @@ def get_results(db_connection, events, lifespan):
 			# (time, name, country, place, date)
 			r = Result(time_float, line[2], line[3], line[-3], line[-1])
 
-			cursor.execute("INSERT INTO results (valid_until, distance, time, name, country, place, date) VALUES(?, ?, ?, ?, ?, ?, ?);", (time.time() + lifespan, event.distance) + r)		
+			db_connection.execute("INSERT INTO results (valid_until, distance, time, name, country, place, date) VALUES(?, ?, ?, ?, ?, ?, ?);", (time.time() + lifespan, event.distance) + r)		
 	db_connection.commit()
 
-def main():
-	db_path = 'data/runners/result_cache.db'
-	db = build_db(db_path)
+# The primary mecahnism for accessing runner data
+class RunnerDBConnection:
+	def __init__(self, db_path):
+		self.db_connection = build_db(db_path)
 
-	if not cache_is_valid(db):
-		print("No valid cache!")
-		get_results(db, Canonical_Events, 24*60*60)
-	else:
-		print("Cache found!!")
-	
-	db.close()
+		if not cache_is_valid(self.db_connection):
+			print("No valid cache!")
+			download_results(self.db_connection, CANONICAL_EVENTS, 3*24*60*60)
+		else:
+			print("Cache found!!")
+		
+		self.cursor = self.db_connection.cursor()
+
+	# Get all of the results for the specified event, ordered from best to worst
+	def get_event_results(self, event):
+		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE distance = ? ORDER BY time ASC;", (event.distance,)).fetchall()
+		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
+
+def main():
+	rdbc = RunnerDBConnection(RUNNER_DB_PATH)
+
+	print(rdbc.get_event_results(EVENT_1500)[0:10])
 
 if __name__ == '__main__':
 	main()
