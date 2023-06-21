@@ -2,13 +2,18 @@
 # progression for a runners in a chosen event
 # 
 # Compare runners based on 1500m, 5000m, 10000m, Half, Full
-#
-# Create a nice presentation in manim based on the results
 
 import requests
 import re
 import datetime
 from bs4 import BeautifulSoup
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+
+import util_sync_runners
+
 
 Events = ["1500", "5000", "10000", "Half Marathon", "Full Marathon"]
 
@@ -79,8 +84,6 @@ for t in perf_list[::-1]:
 	
 	if year >= 1980:
 		years[year].insert(0, time_float)
-
-print("Working, I guess??")
 
 
 # Need to manually iterate over dictionary because dictionaries are not guaranteed to preserve key order

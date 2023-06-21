@@ -13,59 +13,30 @@
 # For a "Hard" version of the problem, only consider 3 adjacent events for each runner. E.g. only look at Bekele's 1500m, 5000m, 10000m
 #	Would need to find a "floor" runner for each specific set of events
 
-import requests
-import re
 import datetime
-from bs4 import BeautifulSoup
 
-Events = ["1500", "5000", "10000", "Half Marathon", "Full Marathon"]
+from util_sync_runners import *
 
-URLS = [
-	"http://www.alltime-athletics.com/m_1500ok.htm",
-	"http://www.alltime-athletics.com/m_5000ok.htm",
-	"http://www.alltime-athletics.com/m_10kok.htm",
-	"http://www.alltime-athletics.com/mhmaraok.htm",
-	"http://www.alltime-athletics.com/mmaraok.htm"
-	]
 
-event_count = len(URLS)
+event_count = len(CANONICAL_EVENTS)
+
+rdbc = RunnerDBConnection(RUNNER_DB_PATH)
 
 elites = set()
 runner_prs = {}
 
+for i, e in enumerate(CANONICAL_EVENTS):
+#for index in range(0, event_count):
+	print("Parsing results for " + e.name)
 
-for index in range(0, event_count):
-	print("Compiling results for " + Events[index])
+	results = rdbc.get_event_results(e)
 
-	response = requests.get(URLS[index])
-	soup = BeautifulSoup(response.content, "html.parser")
-	page = soup.find("pre")
+	for r in results[::-1]:
+			
+			pr_list = runner_prs.get(r.name, [100000] * 5)
+			pr_list[i] = r.time
 
-	runner_list = page.text.split("\n")
-
-	for t in runner_list[::-1]:
-		while t.replace("   ", "  ") != t:
-			t = t.replace("   ", "  ")
-
-		line = t.strip().split("  ")
-
-		if len(line) > 1:
-			time_str = line[1]
-			if index < 3:
-				time_str = time_str.replace(".",":")
-				time_list = time_str.split(":")
-				time_float = 60 * int(time_list[0]) + int(time_list[1]) + 0.01 * int(re.sub("[^0-9]", "", time_list[2]))
-			elif index == 3:
-				time_list = time_str.split(":")
-				time_float = 60 * int(time_list[0]) + int(re.sub("[^0-9]", "", time_list[1]))
-			elif index == 4:
-				time_list = time_str.split(":")
-				time_float = 3600 * int(time_list[0]) + 60 * int(time_list[1]) + int(re.sub("[^0-9]", "", time_list[2]))
-
-			pr_list = runner_prs.get(line[2], [100000] * 5)
-			pr_list[index] = time_float
-
-			runner_prs[line[2]] = pr_list
+			runner_prs[r.name] = pr_list
 
 
 def is_dominated(candidate, elite):
@@ -73,8 +44,6 @@ def is_dominated(candidate, elite):
 		if runner_prs[candidate][i] <= runner_prs[elite][i] and runner_prs[candidate][i] < 10000:
 			return False
 	return True
-
-#elites.add("Kenenisa Bekele")
 
 print("*****************")
 print()
