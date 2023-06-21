@@ -17,30 +17,29 @@ import datetime
 
 from util_sync_runners import *
 
-
-event_count = len(CANONICAL_EVENTS)
+EVENTS = OLYMPIC_EVENTS
 
 rdbc = RunnerDBConnection(RUNNER_DB_PATH)
 
+event_count = len(EVENTS)
 elites = set()
 runner_prs = {}
 
-for i, e in enumerate(CANONICAL_EVENTS):
-#for index in range(0, event_count):
+for i, e in enumerate(EVENTS):
 	print("Parsing results for " + e.name)
 
 	results = rdbc.get_event_results(e)
 
 	for r in results[::-1]:
 			
-			pr_list = runner_prs.get(r.name, [100000] * 5)
+			pr_list = runner_prs.get(r.name, [100000] * event_count)
 			pr_list[i] = r.time
 
 			runner_prs[r.name] = pr_list
 
 
 def is_dominated(candidate, elite):
-	for i in range(0,5):
+	for i in range(0,event_count):
 		if runner_prs[candidate][i] <= runner_prs[elite][i] and runner_prs[candidate][i] < 10000:
 			return False
 	return True
@@ -66,7 +65,7 @@ sorted_elites = list(elites)
 sorted_elites.sort()
 
 for elite in sorted_elites:
-	disp_list = [''] * 5
+	disp_list = [''] * event_count
 	for i in range(0, event_count):
 		event_time = runner_prs[elite][i]
 		if event_time < 10000:

@@ -33,6 +33,13 @@ CANONICAL_EVENTS = [
 	EVENT_FULL,
 	]
 
+OLYMPIC_EVENTS = [
+	EVENT_1500,
+	EVENT_5000,
+	EVENT_10000,
+	EVENT_FULL,
+]
+
 # Create/ Load the cache database from a file
 # If needed, create the necessary database structure
 def build_db(db_path):
@@ -48,6 +55,7 @@ def build_db(db_path):
 		place TEXT,
 		date TEXT
 	);""")
+	db_connection.commit()
 
 	return db_connection
 
@@ -130,6 +138,9 @@ class RunnerDBConnection:
 		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE distance = ? ORDER BY time ASC;", (event.distance,)).fetchall()
 		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
 
+
+# This file should primarily be used as a library.
+# The main function is simply for testing and debugging
 def main():
 	rdbc = RunnerDBConnection(RUNNER_DB_PATH)
 
