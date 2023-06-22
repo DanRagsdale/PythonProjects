@@ -18,9 +18,9 @@ Result = namedtuple("Result", "time name country place date")
 
 RUNNER_DB_PATH = 'data/runners/result_cache.db'
 
-EVENT_1500 = Event("1500", 1500, "http://www.alltime-athletics.com/m_1500ok.htm")
-EVENT_5000 = Event("5000", 5_000, "http://www.alltime-athletics.com/m_5000ok.htm")
-EVENT_10000 = Event("10000", 10_000, "http://www.alltime-athletics.com/m_10kok.htm")
+EVENT_1500 = Event("1500m", 1500, "http://www.alltime-athletics.com/m_1500ok.htm")
+EVENT_5000 = Event("5000m", 5_000, "http://www.alltime-athletics.com/m_5000ok.htm")
+EVENT_10000 = Event("10000m", 10_000, "http://www.alltime-athletics.com/m_10kok.htm")
 EVENT_HALF = Event("Half Marathon", 21_098, "http://www.alltime-athletics.com/mhmaraok.htm")
 EVENT_FULL = Event("Marathon", 42_195, "http://www.alltime-athletics.com/mmaraok.htm")
 
