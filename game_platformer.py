@@ -9,7 +9,8 @@ from PIL import Image
 
 from game_helpers import *
 
-pygame.init()
+pygame.display.init()
+pygame.font.init()
 
 vec = pygame.math.Vector2
 
@@ -822,6 +823,7 @@ class Game():
 			frame_count += 1
 			clock.tick(60)
 
+		print("Exiting")
 		pygame.display.quit()
 		pygame.quit()
 		sys.exit()

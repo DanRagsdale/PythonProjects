@@ -58,7 +58,7 @@ IMAGE_SOURCES = [
 
 IMAGES = [None]
 
-pygame.init()
+pygame.display.init()
 pygame.font.init()
 
 window = pygame.display.set_mode([SCREEN_WIDTH + 300, SCREEN_HEIGHT + 100])
@@ -336,7 +336,9 @@ Path(FOLDER_LOCATION).mkdir(parents=True, exist_ok=True)
 with open (FOLDER_LOCATION + '/' + FILE_NAME, 'w+', newline='\n') as f:
 	f.write(str(high_score))
 
+pygame.display.quit()
 pygame.quit()
+sys.exit()
 
 
 

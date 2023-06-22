@@ -29,7 +29,8 @@ IMAGE_SOURCES = [
 
 IMAGES = []
 
-pygame.init()
+pygame.display.init()
+pygame.font.init()
 
 pygame.display.set_caption("Connect 4")
 window = pygame.display.set_mode((800,600))
@@ -382,3 +383,7 @@ while running:
 	pygame.Surface.blit(window,surf_board, (0,0))
 
 	pygame.display.update()
+
+pygame.display.quit()
+pygame.quit()
+sys.exit()
