@@ -15,7 +15,7 @@
 
 import datetime
 
-from util_sync_runners import *
+from runners_sync_data import *
 
 EVENTS = OLYMPIC_EVENTS
 

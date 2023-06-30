@@ -82,11 +82,12 @@ if __name__ == '__main__':
 	plot1.set(xlabel="Year", ylabel="Time", title=f"{event.name} progression by year")
 
 	canvas = FigureCanvasTkAgg(fig, master = window)
-	canvas.draw()
+	canvas.draw_idle()
 
-	canvas.get_tk_widget().pack()
+	#canvas.get_tk_widget().pack()
 
 	toolbar = NavigationToolbar2Tk(canvas, window)
-	canvas.get_tk_widget().pack()
+	toolbar.update()
+	canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
 
 	window.mainloop()
