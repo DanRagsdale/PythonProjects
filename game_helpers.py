@@ -113,3 +113,6 @@ def check_ray_rect_collision_point(ray, rect):
 def check_ray_rect_collision(ray, rect):
 	return check_ray_rect_collision_point(ray, rect)[0]
 
+# Multiply all of the elements of tup by scalar
+def scale_tuple(scalar, tup):
+	return tuple([x*scalar for x in tup])
