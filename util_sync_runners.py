@@ -59,11 +59,17 @@ def build_db(db_path):
 
 	return db_connection
 
+
+# Use cached results, even if they are expired. Useful for offline testing
+IGNORE_CACHE_TIMEOUT = True
+
 # Check if the cached results are still valid.
 # If not, clear them from the datatbase
 def cache_is_valid(db_connection):
 	cached_results = db_connection.execute("SELECT valid_until FROM results;", ()).fetchone()
-	if cached_results is None or time.time() > cached_results[0]:
+	if cached_results is None:
+		return False	
+	if not IGNORE_CACHE_TIMEOUT and time.time() > cached_results[0]:
 		db_connection.execute("DELETE FROM results;")
 		db_connection.commit()
 		return False
@@ -137,7 +143,6 @@ class RunnerDBConnection:
 	def get_event_results(self, event):
 		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE distance = ? ORDER BY time ASC;", (event.distance,)).fetchall()
 		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
-
 
 # This file should primarily be used as a library.
 # The main function is simply for testing and debugging
