@@ -5,6 +5,7 @@
 
 from collections import namedtuple
 import time
+import itertools
 
 import requests
 import re
@@ -13,16 +14,22 @@ from bs4 import BeautifulSoup
 
 import sqlite3
 
-Event = namedtuple("Event", "name distance url")
+Event = namedtuple("Event", "name distance urls")
 Result = namedtuple("Result", "time name country place date")
 
 RUNNER_DB_PATH = 'data/runners/result_cache.db'
 
-EVENT_1500 = Event("1500m", 1500, "http://www.alltime-athletics.com/m_1500ok.htm")
-EVENT_5000 = Event("5000m", 5_000, "http://www.alltime-athletics.com/m_5000ok.htm")
-EVENT_10000 = Event("10000m", 10_000, "http://www.alltime-athletics.com/m_10kok.htm")
-EVENT_HALF = Event("Half Marathon", 21_098, "http://www.alltime-athletics.com/mhmaraok.htm")
-EVENT_FULL = Event("Marathon", 42_195, "http://www.alltime-athletics.com/mmaraok.htm")
+# Sexes for all of the events
+MALE = 0
+FEMALE = 1
+
+SEXES = [MALE, FEMALE]
+
+EVENT_1500 = Event("1500m", 1500, ("http://www.alltime-athletics.com/m_1500ok.htm", "http://www.alltime-athletics.com/w_1500ok.htm"))
+EVENT_5000 = Event("5000m", 5_000, ("http://www.alltime-athletics.com/m_5000ok.htm", "http://www.alltime-athletics.com/w_5000ok.htm"))
+EVENT_10000 = Event("10000m", 10_000, ("http://www.alltime-athletics.com/m_10kok.htm", "http://www.alltime-athletics.com/w_10kok.htm"))
+EVENT_HALF = Event("Half Marathon", 21_098, ("http://www.alltime-athletics.com/mhmaraok.htm", "http://www.alltime-athletics.com/whmaraok.htm"))
+EVENT_FULL = Event("Marathon", 42_195, ("http://www.alltime-athletics.com/mmaraok.htm", "http://www.alltime-athletics.com/wmaraok.htm"))
 
 # The events which, by default, this util will download
 CANONICAL_EVENTS = [
@@ -48,6 +55,7 @@ def build_db(db_path):
 	db_connection.execute("""CREATE TABLE IF NOT EXISTS results(
 		result_id INTEGER PRIMARY KEY AUTOINCREMENT,
 		valid_until INT, 
+		sex INT,
 		distance INT,
 		time REAL,
 		name TEXT,
@@ -61,7 +69,11 @@ def build_db(db_path):
 
 
 # Use cached results, even if they are expired. Useful for offline testing
-IGNORE_CACHE_TIMEOUT = True
+NORMAL_CACHE = 0
+IGNORE_CACHE_TIMEOUT = 1
+FORCE_REFRESH = 2
+
+CACHE_STATE = IGNORE_CACHE_TIMEOUT
 
 # Check if the cached results are still valid.
 # If not, clear them from the datatbase
@@ -69,7 +81,13 @@ def cache_is_valid(db_connection):
 	cached_results = db_connection.execute("SELECT valid_until FROM results;", ()).fetchone()
 	if cached_results is None:
 		return False	
-	if not IGNORE_CACHE_TIMEOUT and time.time() > cached_results[0]:
+	if CACHE_STATE == FORCE_REFRESH:
+		db_connection.execute("DELETE FROM results;")
+		db_connection.commit()
+		return False
+	if CACHE_STATE == IGNORE_CACHE_TIMEOUT:
+		return True
+	if time.time() > cached_results[0]:
 		db_connection.execute("DELETE FROM results;")
 		db_connection.commit()
 		return False
@@ -80,10 +98,10 @@ def cache_is_valid(db_connection):
 def download_results(db_connection, events, lifespan):
 	time_multipliers = [0.01, 1, 60, 3600]
 
-	for event in events:
-		print("Compiling results for " + event.name)
+	for sex, event in itertools.product(SEXES, events):
+		print("Compiling results for " + event.name + " for sex " + str(sex))
 
-		response = requests.get(event.url)
+		response = requests.get(event.urls[sex])
 		soup = BeautifulSoup(response.content, "html.parser")
 		page = soup.find("pre")
 
@@ -123,7 +141,8 @@ def download_results(db_connection, events, lifespan):
 			# (time, name, country, place, date)
 			r = Result(time_float, line[2], line[3], line[-3], line[-1])
 
-			db_connection.execute("INSERT INTO results (valid_until, distance, time, name, country, place, date) VALUES(?, ?, ?, ?, ?, ?, ?);", (time.time() + lifespan, event.distance) + r)		
+			db_connection.execute("INSERT INTO results (valid_until, sex, distance, time, name, country, place, date) VALUES(?, ?, ?, ?, ?, ?, ?, ?);",
+				(time.time() + lifespan, sex, event.distance) + r)		
 	db_connection.commit()
 
 # The primary mecahnism for accessing runner data
@@ -140,8 +159,8 @@ class RunnerDBConnection:
 		self.cursor = self.db_connection.cursor()
 
 	# Get all of the results for the specified event, ordered from best to worst
-	def get_event_results(self, event):
-		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE distance = ? ORDER BY time ASC;", (event.distance,)).fetchall()
+	def get_event_results(self, sex, event):
+		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE sex = ? AND distance = ? ORDER BY time ASC;", (sex, event.distance)).fetchall()
 		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
 
 # This file should primarily be used as a library.

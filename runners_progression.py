@@ -24,11 +24,11 @@ country_filter = {} # Only count performances from the specified country, e.g. '
 ignore_losers = False # Only count the winning performance from each race. Helps elimate skew frow a single fast race in a year
 
 # Return a dictionary of lists of all of the best times for the given years, in order
-def get_year_lists(event, years):
+def get_year_lists(sex, event, years):
 	year_lists = {key:[] for key in years}
 
 	rdbc = RunnerDBConnection(RUNNER_DB_PATH)
-	results = rdbc.get_event_results(event)
+	results = rdbc.get_event_results(sex, event)
 
 	for r in results[::-1]:
 		if len(country_filter) and r.country not in country_filter:
@@ -72,18 +72,26 @@ class progression_gui(tk.Frame):
 		#test_button = Button(master = window, command = test_command, height = 2, width = 10, text = "Plot!")	
 		#test_button.pack()
 
-		self.test_box = ttk.Combobox(window, state='readonly')
+		frame = Frame(window)
+		frame.pack()
+
+		self.sex_box = ttk.Combobox(frame, state='readonly')
+		self.sex_box['values'] = ['Male', 'Female']
+		self.sex_box.current(0)
+		self.sex_box.grid(column=0, row=0, padx=3)
+		self.sex_box.bind('<<ComboboxSelected>>', self.draw_progression) 
+
+		self.test_box = ttk.Combobox(frame, state='readonly')
 		self.test_box['values'] = [e.name for e in CANONICAL_EVENTS] 
 		self.test_box.current(0)
 		self.test_box.bind('<<ComboboxSelected>>', self.draw_progression) 
-		self.test_box.pack()
-				
+		self.test_box.grid(column=1, row=0, padx=3)
+
+
 		self.fig = Figure(figsize = (5, 5), dpi = 100)
 
-		self.canvas = FigureCanvasTkAgg(self.fig, master = window)
+		self.canvas = FigureCanvasTkAgg(self.fig, master=window)
 		self.canvas.draw_idle()
-
-		#canvas.get_tk_widget().pack()
 
 		toolbar = NavigationToolbar2Tk(self.canvas, window)
 		toolbar.update()
@@ -98,7 +106,7 @@ class progression_gui(tk.Frame):
 		event = CANONICAL_EVENTS[self.test_box.current()]
 		years = range(1960, 2024)
 		
-		year_lists = get_year_lists(event, years)
+		year_lists = get_year_lists(self.sex_box.current(), event, years)
 		best_times = get_yearly_bests(year_lists, years)
 
 		self.fig.clear()		
