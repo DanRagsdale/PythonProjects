@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 
+import tkinter as tk
+
 from tkinter import *
 from tkinter import ttk
 
@@ -44,9 +46,9 @@ def get_year_lists(event, years):
 	
 	return year_lists
 
-# Return a list of the best times in each year	
+# Return a dictionary of the best times in each year	
 def get_yearly_bests(year_lists, years):
-	best_times = []
+	best_times = {}
 	
 	for year in years:
 		year_list = year_lists[year]
@@ -55,39 +57,60 @@ def get_yearly_bests(year_lists, years):
 
 		#print(f"{year},  {disp_list[0:10]}")
 
-		best_times.append(year_list[0])
+		if len(year_list) > 0:
+			best_times[year] = year_list[0]
 
 	return best_times
 
+class progression_gui(tk.Frame):
+	def __init__(self, window = None):
+		tk.Frame.__init__(self, window)
+
+		# GUI code	
+		window.title("runner progressions by year")
+		window.geometry('600x600')
+		#test_button = Button(master = window, command = test_command, height = 2, width = 10, text = "Plot!")	
+		#test_button.pack()
+
+		self.test_box = ttk.Combobox(window, state='readonly')
+		self.test_box['values'] = [e.name for e in CANONICAL_EVENTS] 
+		self.test_box.current(0)
+		self.test_box.bind('<<ComboboxSelected>>', self.draw_progression) 
+		self.test_box.pack()
+				
+		self.fig = Figure(figsize = (5, 5), dpi = 100)
+
+		self.canvas = FigureCanvasTkAgg(self.fig, master = window)
+		self.canvas.draw_idle()
+
+		#canvas.get_tk_widget().pack()
+
+		toolbar = NavigationToolbar2Tk(self.canvas, window)
+		toolbar.update()
+		self.canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
+
+		self.draw_progression(None)
+
+		window.mainloop()
+
+
+	def draw_progression(self, _):
+		event = CANONICAL_EVENTS[self.test_box.current()]
+		years = range(1960, 2024)
+		
+		year_lists = get_year_lists(event, years)
+		best_times = get_yearly_bests(year_lists, years)
+
+		self.fig.clear()		
+		plot1 = self.fig.add_subplot(111)
+
+		plot1.plot(best_times.keys(), best_times.values())
+		plot1.yaxis.set_major_formatter(lambda t, _: str(datetime.timedelta(seconds=t)))
+		plot1.set(xlabel="Year", ylabel="Time", title=f"{event.name} progression by year")
+
+		self.canvas.draw()		
+
+
 if __name__ == '__main__':
-	event = EVENT_5000
-	years = range(1980, 2024)
-
-	year_lists = get_year_lists(event, years)
-	best_times = get_yearly_bests(year_lists, years)
-	
-	# GUI code	
 	window = Tk()
-
-	window.title("Runner Progressions by year")
-	window.geometry('600x600')
-	# test_button = Button(master = window, command = test_plot, height = 2, width = 10, text = "Plot!")	
-	# test_button.pack()
-			
-	fig = Figure(figsize = (5, 5), dpi = 100)
-
-	plot1 = fig.add_subplot(111)
-	plot1.plot(years, best_times)
-	plot1.yaxis.set_major_formatter(lambda t, _: str(datetime.timedelta(seconds=t)))
-	plot1.set(xlabel="Year", ylabel="Time", title=f"{event.name} progression by year")
-
-	canvas = FigureCanvasTkAgg(fig, master = window)
-	canvas.draw_idle()
-
-	#canvas.get_tk_widget().pack()
-
-	toolbar = NavigationToolbar2Tk(canvas, window)
-	toolbar.update()
-	canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
-
-	window.mainloop()
+	gui = progression_gui(window = window)
