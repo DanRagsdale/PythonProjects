@@ -82,10 +82,9 @@ def build_db(db_path):
 	return db_connection
 
 
-# Use cached results, even if they are expired. Useful for offline testing
 NORMAL_CACHE = 0
-IGNORE_CACHE_TIMEOUT = 1
-FORCE_REFRESH = 2
+IGNORE_CACHE_TIMEOUT = 1 # Use cached results, even if they are expired. Useful for offline testing
+FORCE_REFRESH = 2 # Always redownload results, even if they are still valid.
 
 CACHE_STATE = IGNORE_CACHE_TIMEOUT
 
@@ -178,10 +177,9 @@ class RunnerDBConnection:
 		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
 
 # This file should primarily be used as a library.
-# The main function is simply for testing and debugging
+# This main function is simply for testing and debugging
 def main():
 	rdbc = RunnerDBConnection(RUNNER_DB_PATH)
-
 	print(rdbc.get_event_results(MALE, EVENT_1500)[0:10])
 
 if __name__ == '__main__':

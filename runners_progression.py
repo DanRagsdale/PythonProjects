@@ -19,23 +19,19 @@ from tkinter import ttk
 from runners_sync_data import *
 
 # User Variables
-
-country_filter = {} # Only count performances from the specified country, e.g. 'USA'
-ignore_losers = False # Only count the winning performance from each race. Helps elimate skew frow a single fast race in a year
-
-rdbc = RunnerDBConnection(RUNNER_DB_PATH)
+#country_filter = set() # Only count performances from the specified country, e.g. 'USA'
+YEARS = range(1980, 2024)
+EVENTS = CANONICAL_EVENTS
 
 # Return a dictionary of lists of all of the best times for the given years, in order
-def get_year_lists(sex, event, years):
+rdbc = RunnerDBConnection(RUNNER_DB_PATH)
+def get_year_lists(sex, event, years, country_filter=None):
 	year_lists = {key:[] for key in years}
 
 	results = rdbc.get_event_results(sex, event)
 
 	for r in results[::-1]:
-		if len(country_filter) and r.country not in country_filter:
-			continue
-
-		if ignore_losers and (not str.isdigit(r.place) or int(r.place) > 1):
+		if country_filter and r.country not in country_filter:
 			continue
 
 		# Parse the event year, create year
@@ -48,20 +44,16 @@ def get_year_lists(sex, event, years):
 	return year_lists
 
 # Return a dictionary of the best times in each year	
-def get_yearly_bests(year_lists, years):
+def get_yearly_bests(year_lists, years, nth_best = 0):
 	best_times = {}
 	
 	for year in years:
 		year_list = year_lists[year]
 
-		disp_list = [f"{str(datetime.timedelta(seconds=t))[0:7]}, " for t in year_list]
-
-		if len(year_list) > 0:
-			best_times[year] = year_list[0]
+		if len(year_list) > nth_best:
+			best_times[year] = year_list[nth_best]
 
 	return best_times
-
-YEARS = range(1960, 2024)
 
 class progression_gui(tk.Frame):
 	def __init__(self, window = None):
@@ -81,12 +73,12 @@ class progression_gui(tk.Frame):
 		sex_box.grid(column=0, row=0, padx=3)
 
 		test_box = ttk.Combobox(frame, state='readonly')
-		test_box['values'] = [e.name for e in CANONICAL_EVENTS] 
+		test_box['values'] = [e.name for e in EVENTS] 
 		test_box.current(0)
 		test_box.grid(column=1, row=0, padx=3)
 		
-		test_box.bind('<<ComboboxSelected>>', lambda x: self.draw_progression(x, sex_box.current(), CANONICAL_EVENTS[test_box.current()])) 
-		sex_box.bind('<<ComboboxSelected>>', lambda x: self.draw_progression(x, sex_box.current(), CANONICAL_EVENTS[test_box.current()])) 
+		test_box.bind('<<ComboboxSelected>>', lambda x: self.draw_progression(x, SEXES[sex_box.current()], EVENTS[test_box.current()])) 
+		sex_box.bind('<<ComboboxSelected>>', lambda x: self.draw_progression(x, SEXES[sex_box.current()], EVENTS[test_box.current()])) 
 
 		# Matplotlib GUI
 		self.fig = Figure(figsize = (5, 5), dpi = 100)
@@ -98,21 +90,25 @@ class progression_gui(tk.Frame):
 		toolbar.update()
 		self.canvas.get_tk_widget().pack(side='top', fill='both', expand=True)
 
-		self.draw_progression(None, 0, EVENT_1500)
+		self.draw_progression(None, MALE, EVENT_1500)
 
 		window.mainloop()
 
 
 	def draw_progression(self, _, sex, event):
-		year_lists = get_year_lists(SEXES[sex], event, YEARS)
+		year_lists = get_year_lists(sex, event, YEARS)
+		
 		best_times = get_yearly_bests(year_lists, YEARS)
+		fifth_times = get_yearly_bests(year_lists, YEARS, nth_best=4)
 
 		self.fig.clear()		
 		plot1 = self.fig.add_subplot(111)
 
 		plot1.plot(best_times.keys(), best_times.values())
+		plot1.plot(fifth_times.keys(), fifth_times.values())
+		
 		plot1.yaxis.set_major_formatter(lambda t, _: str(datetime.timedelta(seconds=t)))
-		plot1.set(xlabel="Year", ylabel="Time", title=f"{SEXES[sex].possesive} {event.name} progression by year")
+		plot1.set(xlabel="Year", ylabel="Time", title=f"{sex.possesive} {event.name} progression by year")
 
 		self.canvas.draw()		
 
