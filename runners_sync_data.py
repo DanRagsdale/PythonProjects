@@ -3,7 +3,7 @@
 # Data is stored as such:
 # (distance: int, time: float, name: string, country: string, place: string, date: string)
 
-from collections import namedtuple
+from typing import NamedTuple
 import time
 import itertools
 
@@ -14,14 +14,28 @@ from bs4 import BeautifulSoup
 
 import sqlite3
 
-Event = namedtuple("Event", "name distance urls")
-Result = namedtuple("Result", "time name country place date")
+class Event(NamedTuple):
+	name: str
+	distance: int
+	urls: tuple[str, str]	
+
+class Result(NamedTuple):
+	time: float
+	name: str
+	country: str
+	place: str
+	date: str
+
+class Sex(NamedTuple):
+	name: str
+	index: int
+	possesive: str
 
 RUNNER_DB_PATH = 'data/runners/result_cache.db'
 
 # Sexes for all of the events
-MALE = 0
-FEMALE = 1
+MALE = Sex('Male', 0, "Men's")
+FEMALE = Sex('Female', 1, "Women's")
 
 SEXES = [MALE, FEMALE]
 
@@ -99,9 +113,9 @@ def download_results(db_connection, events, lifespan):
 	time_multipliers = [0.01, 1, 60, 3600]
 
 	for sex, event in itertools.product(SEXES, events):
-		print("Compiling results for " + event.name + " for sex " + str(sex))
+		print("Compiling results for " + event.name + " for " + sex.possesive)
 
-		response = requests.get(event.urls[sex])
+		response = requests.get(event.urls[sex.index])
 		soup = BeautifulSoup(response.content, "html.parser")
 		page = soup.find("pre")
 
@@ -142,7 +156,7 @@ def download_results(db_connection, events, lifespan):
 			r = Result(time_float, line[2], line[3], line[-3], line[-1])
 
 			db_connection.execute("INSERT INTO results (valid_until, sex, distance, time, name, country, place, date) VALUES(?, ?, ?, ?, ?, ?, ?, ?);",
-				(time.time() + lifespan, sex, event.distance) + r)		
+				(time.time() + lifespan, sex.index, event.distance) + r)		
 	db_connection.commit()
 
 # The primary mecahnism for accessing runner data
@@ -160,7 +174,7 @@ class RunnerDBConnection:
 
 	# Get all of the results for the specified event, ordered from best to worst
 	def get_event_results(self, sex, event):
-		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE sex = ? AND distance = ? ORDER BY time ASC;", (sex, event.distance)).fetchall()
+		raw_results = self.db_connection.execute("SELECT time, name, country, place, date FROM results WHERE sex = ? AND distance = ? ORDER BY time ASC;", (sex.index, event.distance)).fetchall()
 		return [Result(r[0], r[1], r[2], r[3], r[4]) for r in raw_results]
 
 # This file should primarily be used as a library.
@@ -168,7 +182,7 @@ class RunnerDBConnection:
 def main():
 	rdbc = RunnerDBConnection(RUNNER_DB_PATH)
 
-	print(rdbc.get_event_results(EVENT_1500)[0:10])
+	print(rdbc.get_event_results(MALE, EVENT_1500)[0:10])
 
 if __name__ == '__main__':
 	main()
