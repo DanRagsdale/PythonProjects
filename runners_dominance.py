@@ -14,83 +14,62 @@
 #	Would need to find a "floor" runner for each specific set of events
 
 import datetime
+from io import StringIO
+from dataclasses import dataclass
 
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk
 
-from typing import NamedTuple
-from dataclasses import dataclass
-
 from runners_sync_data import *
 
 
 EVENTS = OLYMPIC_EVENTS
-rdbc = RunnerDBConnection(RUNNER_DB_PATH)
 
 @dataclass
 class Runner:
 	name: str
 	bests: dict
 
-
-event_count = len(EVENTS)
-elites = []
-runners = {}
-
 def is_dominated(candidate, elite):
 	for e in EVENTS:
-		if e in candidate.bests and candidate.bests[e] <= elite.bests.get(e, 10000):
-		#if runner_prs[candidate][i] <= runner_prs[elite][i] and runner_prs[candidate][i] < 10000:
+		# Return false iff there is an event both have run, and if candidate is at least as fast
+		# If candidate has not run the event, then continue checking other events
+		# If elite has not run the event and the candidate has, canditate is not dominated so return False
+		# Comparisons with NaN always return False
+		if candidate.bests.get(e, float('nan')) <= elite.bests.get(e, float('inf')):
 			return False
 	return True
 
-for e in EVENTS:
-	print("Parsing results for " + e.name)
+rdbc = RunnerDBConnection(RUNNER_DB_PATH)
+def get_elites(sex):
+	elites = []
+	runners = {}
+	
+	for e in EVENTS:
+		results = rdbc.get_event_results(sex, e)
 
-	results = rdbc.get_event_results(FEMALE, e)
+		for r in results[::-1]:
+				runner = runners.get(r.name, Runner(r.name, {}))
+				runner.bests[e] = r.time
+				runners[r.name] = runner
 
-	for r in results[::-1]:
-			runner = runners.get(r.name, Runner(r.name, {}))
-			runner.bests[e] = r.time
-			runners[r.name] = runner
+	for candidate in runners.values():
+		runner_dominated = False
 
-print("*****************")
-print()
+		# Check if it dominates any of the existing elites	
+		# Check if any of the existing elites dominate it
+		for elite in elites.copy():
+			if is_dominated(candidate, elite):
+				runner_dominated = True
+			if is_dominated(elite, candidate):
+				elites.remove(elite)
 
-for candidate in runners.values():
-	runner_dominated = False
+		if runner_dominated != True:
+			elites.append(candidate)
 
-	# Check if it dominates any of the existing elites	
-	# Check if any of the existing elites dominate it
-	for elite in elites.copy():
-		if is_dominated(candidate, elite):
-			runner_dominated = True
-		if is_dominated(elite, candidate):
-			elites.remove(elite)
-		
-	if runner_dominated != True:
-		elites.append(candidate)
-
-
-elites.sort(key=lambda x: x.name)
-
-event_count = len(EVENTS)
-
-for elite in elites:
-	disp_list = [''] * event_count
-	for i, e in enumerate(EVENTS):
-		event_time = elite.bests.get(e, 10000)
-		if event_time < 10000:
-			disp_list[i] = str(datetime.timedelta(seconds=event_time))[0:7]
-		else:
-			disp_list[i] = "       "	
-	print(elite.name + " " * (40 - len(elite.name)) + str(disp_list))
-
-
-print()
-print("*****************")
-
+	elites.sort(key=lambda x: x.name)
+	return elites
 
 class dominance_gui(tk.Frame):
 	def __init__(self, window):
@@ -104,22 +83,49 @@ class dominance_gui(tk.Frame):
 		sex_box = ttk.Combobox(window, state='readonly')
 		sex_box['values'] = [s.name for s in SEXES]
 		sex_box.current(0)
-		#sex_box.grid(column=0, row=0, padx=3)
-		sex_box.pack()
+		sex_box.grid(column=0, row=0, padx=3)
 
 		sex_box.bind('<<ComboboxSelected>>', lambda x: self.draw_elites(SEXES[sex_box.current()])) 
 
 		# Output Display
-		self.outputContent = StringVar()
+		self.output_names = StringVar()
+		names = ttk.Label(window, textvariable=self.output_names)
+		names.grid(column=0, row=1, padx=5)
 
-		output = ttk.Label(window)
-		output['textvariable'] = self.outputContent
-		output.pack()
+		self.output_events = {}
+		for i, e in enumerate(EVENTS):
+			outputContent = StringVar()
+			self.output_events[e] = outputContent
+			output = ttk.Label(window, textvariable=outputContent)
+			output.grid(column=(i+1), row = 1, padx=5)
 
+		self.draw_elites(MALE)
+	
 		window.mainloop()
 
 	def draw_elites(self, sex):
-		self.outputContent.set(sex.name)
+		elites = get_elites(sex)
+
+		def init_stringio(initial_value):
+			output = StringIO(initial_value)
+			output.seek(0, 2)
+			return output
+
+		name_buffer = init_stringio('\n\n')
+		event_buffers = {event:init_stringio(f"{event.name}\n\n") for event in EVENTS}
+
+		for elite in elites:
+			name_buffer.write(f"{elite.name}\n")
+
+			for e in EVENTS:
+				if e in elite.bests:
+					event_buffers[e].write(f"{str(datetime.timedelta(seconds=elite.bests[e]))[0:7]}\n")
+				else:
+					event_buffers[e].write("\n")
+				
+		self.output_names.set(name_buffer.getvalue())	
+		for e in EVENTS:
+			self.output_events[e].set(event_buffers[e].getvalue())
 
 if __name__ == '__main__':
 	window = Tk()
