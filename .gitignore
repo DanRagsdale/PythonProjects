@@ -1,8 +1,11 @@
 .vscode/
+
+DA/
+
 data/
 media/
 venv/
 __pycache__/
 
 ideas.md
-test.py
+test*.py
