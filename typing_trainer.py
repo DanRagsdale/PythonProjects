@@ -42,9 +42,14 @@ class DisplayField(Text):
 
 
 class TypingTrainer:
-	def __init__(self, root, display_string):
+	def __init__(self, root):
+		self.last_time = time.time()
+		self.last_char = None
+
+		self.pairs = {} # key: 'xx' value: (occurences, average time)
 		root.title("Smart typing trainer")
-	
+
+		# GUI Code	
 		root.columnconfigure(0, weight=1)
 		root.rowconfigure(0, weight=1)
 
@@ -55,34 +60,49 @@ class TypingTrainer:
 	
 		ttk.Label(mainframe, text="Type Better, Type Faster", anchor='center').grid(column=0, row=0, columnspan=3, stick=(W, E))
 
-		self.disp_string = display_string
-		self.comp_string = ""
-
+		# Display Field
 		self.display_field = DisplayField(mainframe, )
 		self.display_field.grid(column=0, row=1, columnspan=3, sticky='news')
 
-		self.last_time = time.time()
-		self.last_char = None
+		# Entry Field
+		self.entry_field = Text(mainframe, )
+		self.entry_field.grid(column=0, row=2, columnspan=3, sticky='news')
+		self.entry_field.bind('<KeyRelease>', lambda *_: self.callback())
 
-		self.pairs = {} # key: 'xx' value: (occurences, average time)
+		# Settings Pane	
+		mode_select = ttk.Frame(mainframe,)
+		mode_select.grid(column=3, row=1,)
 
+		self.control_var = StringVar(value='short')
+		Radiobutton(mode_select, text="Short", variable=self.control_var, value='short', command=lambda: self.set_strings('short')).pack(anchor=W)
+		Radiobutton(mode_select, text="Medium", variable=self.control_var, value='medium', command=lambda: self.set_strings('medium')).pack(anchor=W)
+		Radiobutton(mode_select, text="Long", variable=self.control_var, value='long', command=lambda: self.set_strings('long')).pack(anchor=W)
+
+		Button(mode_select, text="Refresh",command=lambda: self.set_strings(self.control_var.get())).pack()
 		
-		sv = StringVar()
-		sv.trace_add('write', lambda *_, var=sv: self.callback(var))
+		self.set_strings(self.control_var.get())
 
-		# entry = Entry(mainframe, textvariable=sv, width=80)
-		# entry.grid(column=0, row=4, columnspan=3)
-		entry = Text(mainframe, )
-		entry.grid(column=0, row=2, columnspan=3, sticky='news')
-		entry.bind('<KeyRelease>', lambda *_, var=entry: self.callback(var))
+	def set_strings(self, sub_folder):
 
+		self.comp_string = ""
+	
+		texts_directory = f'res/typing/{sub_folder}/'
 
+		Path(texts_directory).mkdir(parents=True, exist_ok=True)
+
+		filename = random.choice(os.listdir(texts_directory))
+
+		disp_string = ""
+		with open (texts_directory + '/' + filename, 'r', newline='\n') as f:
+			disp_string = f.read().replace('\n', ' ')
+
+		self.disp_string = disp_string
 		self.display_field.update(self.disp_string, self.comp_string)
-		
-	def callback(self, var):
+
+	def callback(self):
 		# Update the comparison string
 		# TODO punish the user for incorrect input
-		self.comp_string = var.get("1.0", END)[:-1] # Ignore the trailing newline
+		self.comp_string = self.entry_field.get("1.0", END)[:-1] # Ignore the trailing newline
 		self.display_field.update(self.disp_string, self.comp_string)
 
 		current_time = time.time()
@@ -118,16 +138,6 @@ class TypingTrainer:
 import random
 
 if __name__ == '__main__':
-	texts_directory = 'res/typing/'
-
-	Path(texts_directory).mkdir(parents=True, exist_ok=True)
-
-	filename = random.choice(os.listdir(texts_directory))
-
-	disp_string = None
-	with open (texts_directory + '/' + filename, 'r', newline='\n') as f:
-		disp_string = f.read().replace('\n', ' ')
-
 	root = Tk()
-	TypingTrainer(root, disp_string)
+	TypingTrainer(root,)
 	root.mainloop()
